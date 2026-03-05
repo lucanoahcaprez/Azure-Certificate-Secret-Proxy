@@ -12,20 +12,27 @@ Diagram: [docs/architecture-diagram.drawio](/docs/architecture-diagram.drawio)
 ## Function behavior
 - Trigger: HTTP GET/POST at `/api/azfunctioncertificatesecretproxy`.
 - Authentication: mutual TLS; client certificate is forwarded in header `X-ARR-ClientCert`.
-- Authorization:
-  - Client cert thumbprint must be in `ALLOWED_CLIENT_CERTS` (semicolon-separated).
-  - Certificate chain must anchor to one of the uploaded issuer certs listed in `ALLOWED_ISSUER_CERTS`.
+- Authorization rule (thumbprint): client cert must be in `ALLOWED_CLIENT_CERTS`.
+- Authorization rule (issuer): certificate chain must anchor to a CA listed in `ALLOWED_ISSUER_CERTS`.
 - Input: `SecretName` via query string or JSON body `{ "SecretName": "<name>" }`.
-- Output:
-  - `200` with JSON `{ SecretName, SecretValue, CertThumb }`
-  - `401` if cert missing/unauthorized/chain not trusted
-  - `400` for bad input
-  - `404` if the secret app setting is absent
+- Output 200: JSON `{ SecretName, SecretValue, CertThumb, Workload }`.
+- Output 401: cert missing, unauthorized thumbprint, or chain not trusted.
+- Output 400: bad input.
+- Output 404: secret not found for the selected workload.
+
+## Workloads (select via `WORKLOAD`)
+- `AppSettings`: reads the secret directly from app settings (default if `WORKLOAD` not set).
+- `KeyVault`: uses managed identity to call Key Vault REST (`https://vault.azure.net`) and return the secret value. Set `KEYVAULT_NAME` or `KEYVAULT_URI` and grant the Function App identity `get` permission on secrets.
+- `Table`: fetches a row from Azure Table Storage via SAS. Requires `TABLE_ENDPOINT` (e.g., `https://account.table.core.windows.net/Secrets`) and `TABLE_SAS_TOKEN` (starting with `?sv=`). Expects `PartitionKey='secret'` and `RowKey=<SecretName>`. Uses column `Value` by default; override with `TABLE_VALUE_FIELD`.
+- Expandable: add new cases to the workload switch in `run.ps1` to support other backends (e.g., Cosmos DB, API call).
 
 ## Required app settings
 - `ALLOWED_CLIENT_CERTS` = `THUMB1;THUMB2` (uppercase recommended).
 - `ALLOWED_ISSUER_CERTS` = thumbprints of uploaded intermediate/root CAs that you trust for clients.
-- One app setting per secret, e.g., `MyStorageAccountKey=<value>`.
+- `WORKLOAD` = `AppSettings` or `KeyVault` or `Table`.
+- For `AppSettings`: one app setting per secret, e.g., `MyStorageAccountKey=<value>`.
+- For `KeyVault`: `KEYVAULT_NAME` (or `KEYVAULT_URI`) and managed identity with Secret Get permission.
+- For `Table`: `TABLE_ENDPOINT`, `TABLE_SAS_TOKEN`, optional `TABLE_VALUE_FIELD`.
 - `WEBSITE_LOAD_CERTIFICATES` = `*` (or include the specific issuer thumbprints) so the Function runtime loads the uploaded CA certs into `Cert:\CurrentUser\My`.
 - Standard Functions settings: `FUNCTIONS_WORKER_RUNTIME=powershell`, `AzureWebJobsStorage=...`.
 
