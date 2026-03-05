@@ -1,93 +1,60 @@
-# Azure-Certificate-Secret-Proxy
+## Purpose
+A lightweight device-facing proxy that delivers secrets (e.g., storage account keys) to Windows endpoints over HTTPS with mutual TLS. Secrets live in Function App settings; Azure Key Vault is removed for this iteration.
 
+## Architecture
+- Windows endpoints call an Azure Function.
+- The platform enforces client certificates; the function validates the presented certificate’s thumbprint and its chain.
+- Only certificates that (1) match `ALLOWED_CLIENT_CERTS` and (2) build a chain to a configured intermediate/root (`ALLOWED_ISSUER_CERTS`) are accepted.
+- Authorized calls return the requested secret from app settings; administrators manage secrets by updating app settings.
 
+Diagram: [docs/architecture-diagram.drawio](/docs/architecture-diagram.drawio)
 
-## Getting started
+## Function behavior
+- Trigger: HTTP GET/POST at `/api/azfunctioncertificatesecretproxy`.
+- Authentication: mutual TLS; client certificate is forwarded in header `X-ARR-ClientCert`.
+- Authorization:
+  - Client cert thumbprint must be in `ALLOWED_CLIENT_CERTS` (semicolon-separated).
+  - Certificate chain must anchor to one of the uploaded issuer certs listed in `ALLOWED_ISSUER_CERTS`.
+- Input: `SecretName` via query string or JSON body `{ "SecretName": "<name>" }`.
+- Output:
+  - `200` with JSON `{ SecretName, SecretValue, CertThumb }`
+  - `401` if cert missing/unauthorized/chain not trusted
+  - `400` for bad input
+  - `404` if the secret app setting is absent
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Required app settings
+- `ALLOWED_CLIENT_CERTS` = `THUMB1;THUMB2` (uppercase recommended).
+- `ALLOWED_ISSUER_CERTS` = thumbprints of uploaded intermediate/root CAs that you trust for clients.
+- One app setting per secret, e.g., `MyStorageAccountKey=<value>`.
+- `WEBSITE_LOAD_CERTIFICATES` = `*` (or include the specific issuer thumbprints) so the Function runtime loads the uploaded CA certs into `Cert:\CurrentUser\My`.
+- Standard Functions settings: `FUNCTIONS_WORKER_RUNTIME=powershell`, `AzureWebJobsStorage=...`.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Deployment checklist
+1. Deploy the function code.
+2. Enable “Client certificate mode: Require” on the Function App.
+3. Upload your intermediate/root CA certificates under TLS/SSL settings → Private Certificates (PFX) or Public Certificates (CER). Add their thumbprints to `ALLOWED_ISSUER_CERTS`. Ensure `WEBSITE_LOAD_CERTIFICATES` contains those thumbprints (or `*`).
+4. Configure app settings above, including one setting per secret.
+5. Ensure your ingress (Front Door/APIM/App Gateway) is configured to require client certificates and forward them (`X-ARR-ClientCert`) to the Function App.
 
-## Add your files
+## Client usage (PowerShell)
+Prereqs: client certificate installed in `Cert:\CurrentUser\My` on the calling machine.
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
+```powershell
+.\client\requestSecret.ps1 `
+  -FunctionUrl "https://<func>.azurewebsites.net/api/azfunctioncertificatesecretproxy" `
+  -SecretName "MyStorageAccountKey" `
+  -Thumbprint "<THUMBPRINT>" `
+  -SkipCertCheck   # optional for non-production testing
 ```
-cd existing_repo
-git remote add origin https://gitlab.int.caprez.ch/community-work/azure-certificate-secret-proxy.git
-git branch -M main
-git push -uf origin main
-```
 
-## Integrate with your tools
+## Local testing (optional)
+- Add a `local.settings.json` with your secrets, `ALLOWED_CLIENT_CERTS`, and `ALLOWED_ISSUER_CERTS`.
+- Start with `func start` (or `func start --cert <pfx> --key <key>` if you want mTLS locally).
+- When not using mTLS locally, you can inject `X-ARR-ClientCert` for ad-hoc tests, but do not do this in production.
 
-* [Set up project integrations](https://gitlab.int.caprez.ch/community-work/azure-certificate-secret-proxy/-/settings/integrations)
+## Security notes
+- Trust is two-layered: explicit client thumbprints plus CA chain validation to uploaded issuers.
+- Limit access to the Function App and its app settings; rotate client certificates and secrets regularly.
+- Prefer short-lived secrets; consider reintroducing Key Vault + managed identity later for stronger governance.
 
-## Collaborate with your team
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
