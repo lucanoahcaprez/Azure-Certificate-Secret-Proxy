@@ -1,155 +1,155 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0" version="29.6.0">
-  <diagram name="Seite-1" id="XZ4Qr4pBBV1Vd-3aOCFy">
-    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <mxCell id="t4XingJuYoZxIkLSCgc8-2" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/security/Key_Vaults.svg;" value="Secure Key Value Store" vertex="1">
-          <mxGeometry height="68" width="68" x="605" y="150" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-4" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="authorization">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="450" y="184" as="sourcePoint" />
-            <mxPoint x="590" y="184" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-3" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/iot/Function_Apps.svg;" value="Device Cert Proxy" vertex="1">
-          <mxGeometry height="60" width="68" x="370" y="154" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-6" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="a&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212)); color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;uthentication&lt;/span&gt;">
-          <mxGeometry relative="1" x="-0.0014" as="geometry">
-            <mxPoint as="offset" />
-            <mxPoint x="220" y="184" as="sourcePoint" />
-            <mxPoint x="350" y="184" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-9" parent="1" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Managed_Identities.svg;" value="Managed Identity" vertex="1">
-          <mxGeometry height="50" width="38" x="500" y="86" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-10" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="Client Cert" vertex="1">
-          <mxGeometry height="50" width="36.84" x="230" y="86" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-11" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.security.token;" value="Function Token" vertex="1">
-          <mxGeometry height="46" width="40" x="310" y="90" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-12" parent="1" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Math___Business-2705/1_1-1014.svg" value="" vertex="1">
-          <mxGeometry height="20" width="19.78" x="280.22" y="101" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-15" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fillColor=#008a00;strokeColor=#005700;" value="Storage Account Access Key">
-          <mxGeometry height="50" relative="1" width="50" x="0.0013" as="geometry">
-            <mxPoint as="offset" />
-            <mxPoint x="590" y="260" as="sourcePoint" />
-            <mxPoint x="220" y="260" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-16" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/storage/Storage_Accounts.svg;" value="Config Storage" vertex="1">
-          <mxGeometry height="52" width="65" x="130" y="352" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-17" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="download">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="160" y="270" as="sourcePoint" />
-            <mxPoint x="160" y="340" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-23" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="73" y="142" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-25" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="" vertex="1">
-          <mxGeometry height="60" width="90" x="60" y="136" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-27" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="" vertex="1">
-          <mxGeometry height="60" width="90" x="80" y="150" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-28" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="Endpoints" vertex="1">
-          <mxGeometry height="60" width="90" x="100" y="170" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-29" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="93" y="156" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-30" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="113" y="176" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-31" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/security/Key_Vaults.svg;" value="Secure Key Value Store" vertex="1">
-          <mxGeometry height="68" width="68" x="615" y="564" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-32" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="authorization">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="460" y="598" as="sourcePoint" />
-            <mxPoint x="600" y="598" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-33" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/iot/Function_Apps.svg;" value="Device Cert Proxy" vertex="1">
-          <mxGeometry height="60" width="68" x="380" y="568" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-34" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="a&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212)); color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;uthentication&lt;/span&gt;">
-          <mxGeometry relative="1" x="-0.0014" as="geometry">
-            <mxPoint as="offset" />
-            <mxPoint x="230" y="598" as="sourcePoint" />
-            <mxPoint x="360" y="598" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-35" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fillColor=#e51400;strokeColor=#B20000;" value="updates">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="649" y="750" as="sourcePoint" />
-            <mxPoint x="649" y="660" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-51" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fillColor=#e51400;strokeColor=#B20000;" value="manages">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="600" y="790" as="sourcePoint" />
-            <mxPoint x="230" y="790" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-36" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=#6F0000;fillColor=#a20025;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.users.administrator;fontColor=#ffffff;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;Administrator&lt;/font&gt;" vertex="1">
-          <mxGeometry height="56" width="58" x="620" y="762" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-37" parent="1" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Managed_Identities.svg;" value="Managed Identity" vertex="1">
-          <mxGeometry height="50" width="38" x="510" y="500" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-38" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="Client Cert" vertex="1">
-          <mxGeometry height="50" width="36.84" x="240" y="500" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-39" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.security.token;" value="Function Key" vertex="1">
-          <mxGeometry height="46" width="40" x="320" y="504" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-40" parent="1" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Math___Business-2705/1_1-1014.svg" value="" vertex="1">
-          <mxGeometry height="20" width="19.78" x="290.22" y="515" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-41" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fillColor=#008a00;strokeColor=#005700;" value="Storage Account Access Key">
-          <mxGeometry height="50" relative="1" width="50" x="0.0013" as="geometry">
-            <mxPoint as="offset" />
-            <mxPoint x="600" y="674" as="sourcePoint" />
-            <mxPoint x="230" y="674" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-42" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/storage/Storage_Accounts.svg;" value="Config Storage" vertex="1">
-          <mxGeometry height="52" width="65" x="139" y="764" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-43" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;" value="download">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="170" y="680" as="sourcePoint" />
-            <mxPoint x="170" y="750" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-45" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="83" y="556" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-46" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="" vertex="1">
-          <mxGeometry height="60" width="90" x="70" y="550" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-47" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="" vertex="1">
-          <mxGeometry height="60" width="90" x="90" y="564" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-48" parent="1" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" value="Endpoints" vertex="1">
-          <mxGeometry height="60" width="90" x="110" y="584" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-49" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="103" y="570" as="geometry" />
-        </mxCell>
-        <mxCell id="t4XingJuYoZxIkLSCgc8-50" parent="1" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="10" x="123" y="590" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e">
+    <diagram name="Seite-1" id="XZ4Qr4pBBV1Vd-3aOCFy">
+        <mxGraphModel dx="894" dy="779" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-2" value="Secure Key Value Store" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/security/Key_Vaults.svg;" parent="1" vertex="1">
+                    <mxGeometry x="605" y="150" width="68" height="68" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-4" value="authorization" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="450" y="184" as="sourcePoint"/>
+                        <mxPoint x="590" y="184" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-3" value="Device Cert Proxy" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/iot/Function_Apps.svg;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="154" width="68" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-6" value="a&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212)); color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;uthentication&lt;/span&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" edge="1">
+                    <mxGeometry x="-0.0014" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="220" y="184" as="sourcePoint"/>
+                        <mxPoint x="350" y="184" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-9" value="Managed Identity" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Managed_Identities.svg;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="86" width="38" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-10" value="Client Cert" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="86" width="36.84" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-11" value="Function Token" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.security.token;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="90" width="40" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-12" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Math___Business-2705/1_1-1014.svg" parent="1" vertex="1">
+                    <mxGeometry x="280.22" y="101" width="19.78" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-15" value="Storage Account Access Key" style="endArrow=classic;html=1;rounded=0;fillColor=#008a00;strokeColor=#005700;" parent="1" edge="1">
+                    <mxGeometry x="0.0013" width="50" height="50" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="590" y="260" as="sourcePoint"/>
+                        <mxPoint x="220" y="260" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-16" value="Config Storage" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/storage/Storage_Accounts.svg;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="352" width="65" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-17" value="download" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="160" y="270" as="sourcePoint"/>
+                        <mxPoint x="160" y="340" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-23" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="73" y="142" width="10" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-25" value="" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="136" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-27" value="" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-28" value="Endpoints" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="170" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-29" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="93" y="156" width="10" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-30" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="113" y="176" width="10" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-31" value="Secure Key Value Store" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/security/Key_Vaults.svg;" parent="1" vertex="1">
+                    <mxGeometry x="615" y="564" width="68" height="68" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-32" value="authorization" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="598" as="sourcePoint"/>
+                        <mxPoint x="600" y="598" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-33" value="Device Cert Proxy" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/iot/Function_Apps.svg;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="568" width="68" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-34" value="a&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212)); color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;uthentication&lt;/span&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" edge="1">
+                    <mxGeometry x="-0.0014" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="230" y="598" as="sourcePoint"/>
+                        <mxPoint x="360" y="598" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-35" value="updates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fillColor=#e51400;strokeColor=#B20000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="649" y="750" as="sourcePoint"/>
+                        <mxPoint x="649" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-51" value="manages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fillColor=#e51400;strokeColor=#B20000;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="600" y="790" as="sourcePoint"/>
+                        <mxPoint x="230" y="790" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-36" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;Administrator&lt;/font&gt;" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=#6F0000;fillColor=#a20025;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.users.administrator;fontColor=#ffffff;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="762" width="58" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-37" value="Managed Identity" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Managed_Identities.svg;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="500" width="38" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-38" value="Client Cert" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="240" y="500" width="36.84" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-39" value="Function Key" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.security.token;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="504" width="40" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-40" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Math___Business-2705/1_1-1014.svg" parent="1" vertex="1">
+                    <mxGeometry x="290.22" y="515" width="19.78" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-41" value="Storage Account Access Key" style="endArrow=classic;html=1;rounded=0;fillColor=#008a00;strokeColor=#005700;" parent="1" edge="1">
+                    <mxGeometry x="0.0013" width="50" height="50" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                        <mxPoint x="600" y="674" as="sourcePoint"/>
+                        <mxPoint x="230" y="674" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-42" value="Config Storage" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/storage/Storage_Accounts.svg;" parent="1" vertex="1">
+                    <mxGeometry x="139" y="764" width="65" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-43" value="download" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="170" y="680" as="sourcePoint"/>
+                        <mxPoint x="170" y="750" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-45" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="83" y="556" width="10" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-46" value="" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="550" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-47" value="" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="90" y="564" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-48" value="Endpoints" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="584" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-49" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="103" y="570" width="10" height="12" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4XingJuYoZxIkLSCgc8-50" value="" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws3.certificate;fillColor=#5294CF;gradientColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="123" y="590" width="10" height="12" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>

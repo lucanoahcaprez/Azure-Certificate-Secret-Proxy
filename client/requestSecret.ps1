@@ -11,7 +11,7 @@ param(
     [switch]$SkipCertCheck           # Optional for lab/local testing
 )
 
-$cert = Get-ChildItem -Path Cert:\CurrentUser\My\$Thumbprint -ErrorAction SilentlyContinue
+$cert = Get-ChildItem -Path Cert:\LocalMachine\My\$Thumbprint -ErrorAction SilentlyContinue
 if (-not $cert) {
     Write-Error "Certificate with thumbprint $Thumbprint not found in Cert:\CurrentUser\My"
     exit 1

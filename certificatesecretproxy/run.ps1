@@ -8,17 +8,68 @@ $allowed = ($env:ALLOWED_CLIENT_CERTS -split ';' | Where-Object { $_ }) | ForEac
 # Expected issuer/root certificates (thumbprints) uploaded to the Function App and loaded via WEBSITE_LOAD_CERTIFICATES
 $issuerThumbs = ($env:ALLOWED_ISSUER_CERTS -split ';' | Where-Object { $_ }) | ForEach-Object { $_.Trim().ToUpper() }
 
-function Send-Response([int]$code, [string]$body) {
+# Collect lightweight execution diagnostics so callers can see how the request was interpreted
+$diagnostics = [ordered]@{
+    Timestamp          = (Get-Date).ToString('o')
+    Method             = $Request.Method
+    Url                = $Request.Url
+    QueryKeys          = @($Request.Query.Keys)
+    SecretName         = $null
+    Workload           = $null
+    CertHeaderPresent  = $false
+    CertThumb          = $null
+    AllowedConfigured  = $allowed.Count
+    IssuersConfigured  = $issuerThumbs.Count
+    ChainStatus        = $null
+    Phase              = 'init'
+    LastMessage        = $null
+}
+
+function Send-Response([int]$code, [string]$message, [hashtable]$extra = @{}) {
+    if ($extra.ContainsKey('Phase')) {
+        $diagnostics.Phase = $extra['Phase']
+        $extra.Remove('Phase') | Out-Null
+    }
+    if ($extra.Count -gt 0) {
+        foreach ($k in $extra.Keys) { $diagnostics[$k] = $extra[$k] }
+    }
+    $diagnostics.LastMessage = $message
+
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
         StatusCode = $code
-        Body       = $body
+        Body       = [pscustomobject]@{
+            Message      = $message
+            Diagnostics  = $diagnostics
+        }
     })
+}
+
+# -------- Parameter parsing (pre-auth) --------
+
+$secretName = $Request.Query.SecretName
+if (-not $secretName) {
+    $body = $Request.Body | ConvertFrom-Json -ErrorAction SilentlyContinue
+    if ($body) { $secretName = $body.SecretName }
+}
+
+$workload = ($env:WORKLOAD)
+if (-not $workload) { $workload = 'AppSettings' }
+$workload = $workload.ToUpper()
+
+$diagnostics.SecretName = $secretName
+$diagnostics.Workload   = $workload
+$diagnostics.Phase      = 'parsed-params'
+
+if (-not $secretName) {
+    Send-Response 400 'SecretName missing (query or JSON body)' @{ Phase = 'parsed-params' }
+    return
 }
 
 # Client certificate is forwarded by the platform in X-ARR-ClientCert (base64 DER)
 $certHeader = $Request.Headers['X-ARR-ClientCert']
+$diagnostics.CertHeaderPresent = [bool]$certHeader
 if (-not $certHeader) {
-    Send-Response 401 'Client certificate missing'
+    Send-Response 401 'Client certificate missing' @{ Phase = 'auth' }
     return
 }
 
@@ -26,20 +77,21 @@ try {
     $clientCert = [X509Certificate2]::new([Convert]::FromBase64String($certHeader))
 }
 catch {
-    Send-Response 400 'Invalid client certificate format'
+    Send-Response 400 'Invalid client certificate format' @{ Phase = 'auth' }
     return
 }
 
 $thumbprint = $clientCert.Thumbprint.ToUpper()
+$diagnostics.CertThumb = $thumbprint
 
 if ($allowed -and ($thumbprint -notin $allowed)) {
-    Send-Response 401 "Unauthorized certificate: $thumbprint"
+    Send-Response 401 "Unauthorized certificate: $thumbprint" @{ Phase = 'auth' }
     return
 }
 
 # Build a chain that must anchor to one of the uploaded issuer certificates
 if (-not $issuerThumbs -or $issuerThumbs.Count -eq 0) {
-    Send-Response 500 'No issuer certificates configured (ALLOWED_ISSUER_CERTS)'
+    Send-Response 500 'No issuer certificates configured (ALLOWED_ISSUER_CERTS)' @{ Phase = 'auth' }
     return
 }
 
@@ -50,7 +102,7 @@ foreach ($t in $issuerThumbs) {
 }
 
 if ($issuerCerts.Count -eq 0) {
-    Send-Response 500 'Configured issuer certificates not found in Cert:\CurrentUser\My (ensure WEBSITE_LOAD_CERTIFICATES includes them)'
+    Send-Response 500 'Configured issuer certificates not found in Cert:\CurrentUser\My (ensure WEBSITE_LOAD_CERTIFICATES includes them)' @{ Phase = 'auth' }
     return
 }
 
@@ -66,23 +118,25 @@ try {
     $chain.ChainPolicy.TrustMode = [X509ChainTrustMode]::CustomRootTrust
 }
 catch {
-    Send-Response 500 'Platform does not support CustomRootTrust; cannot enforce issuer validation'
+    Send-Response 500 'Platform does not support CustomRootTrust; cannot enforce issuer validation' @{ Phase = 'auth' }
     return
 }
 
 $isTrusted = $chain.Build($clientCert)
 if (-not $isTrusted) {
     $status = ($chain.ChainStatus | ForEach-Object { $_.Status.ToString() + ':' + $_.StatusInformation.Trim() }) -join '; '
-    Send-Response 401 "Certificate chain not trusted. Status: $status"
+    $diagnostics.ChainStatus = $status
+    Send-Response 401 "Certificate chain not trusted. Status: $status" @{ Phase = 'auth' }
     return
 }
 
 # Ensure the chain actually anchors to one of the configured issuers
 $anchors = $chain.ChainElements | Select-Object -Last 1
 if ($anchors.Certificate.Thumbprint.ToUpper() -notin $issuerThumbs) {
-    Send-Response 401 'Certificate chain does not anchor to a configured issuer'
+    Send-Response 401 'Certificate chain does not anchor to a configured issuer' @{ Phase = 'auth' }
     return
 }
+$diagnostics.Phase = 'authorized'
 
 # -------- Workload helpers --------
 
@@ -119,22 +173,7 @@ function Get-SecretFromTable([string]$name) {
     $resp.$valueField
 }
 
-# -------- Secret selection --------
-
-$secretName = $Request.Query.SecretName
-if (-not $secretName) {
-    $body = $Request.Body | ConvertFrom-Json -ErrorAction SilentlyContinue
-    if ($body) { $secretName = $body.SecretName }
-}
-
-if (-not $secretName) {
-    Send-Response 400 'SecretName missing (query or JSON body)'
-    return
-}
-
-$workload = ($env:WORKLOAD)
-if (-not $workload) { $workload = 'AppSettings' }
-$workload = $workload.ToUpper()
+# -------- Secret retrieval --------
 
 try {
     switch ($workload) {
@@ -153,21 +192,25 @@ try {
     }
 }
 catch {
-    Send-Response 500 $_.Exception.Message
+    Send-Response 500 $_.Exception.Message @{ Phase = 'workload' }
     return
 }
 
 if (-not $secretValue) {
-    Send-Response 404 "Secret '$secretName' not found for workload '$workload'"
+    Send-Response 404 "Secret '$secretName' not found for workload '$workload'" @{ Phase = 'workload' }
     return
 }
+
+$diagnostics.Phase       = 'completed'
+$diagnostics.LastMessage = 'Success'
 
 Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
     StatusCode = 200
     Body       = [pscustomobject]@{
-        SecretName  = $secretName
-        SecretValue = $secretValue
-        CertThumb   = $thumbprint
-        Workload    = $workload
+        SecretName   = $secretName
+        SecretValue  = $secretValue
+        CertThumb    = $thumbprint
+        Workload     = $workload
+        Diagnostics  = $diagnostics
     }
 })
