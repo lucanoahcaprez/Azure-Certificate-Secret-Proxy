@@ -88,36 +88,25 @@ function Get-ClientCertificate {
         [System.Net.Http.HttpRequestMessage]$req
     )
 
-    $headerNames = @('X-ARR-ClientCert', 'X-Client-Cert', 'X-Forwarded-Client-Cert', 'X-MS-CERT') # common forwarder headers
-    foreach ($hn in $headerNames) {
-        $values = $null
-        $found = $req.Headers.TryGetValues($hn, [ref]$values)
-        if (-not $found -and $req.Content -and $req.Content.Headers) {
-            $found = $req.Content.Headers.TryGetValues($hn, [ref]$values)
-        }
-        if (-not $found) { continue }
-
-        $raw = ($values -join '')
-        $diagnostics.CertHeaderName    = $hn
-        $diagnostics.CertHeaderLength  = $raw.Length
-        $diagnostics.CertHeaderPresent = $true
-
-        # Some proxies URL-encode or prepend PEM markers; normalize to base64 DER
-        $candidate = [System.Net.WebUtility]::UrlDecode($raw)
-        $candidate = $candidate.Trim()
-        if ($candidate -like '-----BEGIN CERTIFICATE*') {
-            $candidate = ($candidate -replace '-----BEGIN CERTIFICATE-----','' -replace '-----END CERTIFICATE-----','' -replace '\s','')
-        }
-
-        try {
-            $bytes = [Convert]::FromBase64String($candidate)
-            return [X509Certificate2]::new($bytes)
-        }
-        catch {
-            $diagnostics.CertParseError = $_.Exception.Message
-        }
+    $raw = $req.Headers['X-ARR-ClientCert']
+    if (-not $raw -and $req.Content -and $req.Content.Headers) {
+        $raw = $req.Content.Headers['X-ARR-ClientCert']
     }
-    return $null
+    $diagnostics.CertHeaderName    = 'X-ARR-ClientCert'
+    $diagnostics.CertHeaderPresent = [bool]$raw
+    if (-not $raw) { return $null }
+
+    $raw = [string]$raw
+    $diagnostics.CertHeaderLength = $raw.Length
+
+    try {
+        $bytes = [Convert]::FromBase64String($raw)
+        return [X509Certificate2]::new($bytes)
+    }
+    catch {
+        $diagnostics.CertParseError = $_.Exception.Message
+        return $null
+    }
 }
 
 $clientCert = Get-ClientCertificate -req $Request
