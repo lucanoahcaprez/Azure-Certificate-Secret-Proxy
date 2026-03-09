@@ -93,9 +93,11 @@ Thumbprints must be uppercase hex strings with no spaces.
 
 Set both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CERTS`. The certificate must pass the chain check **and** have its thumbprint in the list. This is the most restrictive mode.
 
-### 4 — Add secrets
+### 4 — Choose a secret backend and add secrets
 
-Secrets are stored as Function App application settings (default `APPSETTINGS` workload):
+The `WORKLOAD` setting controls where the function looks for secrets. Pick one:
+
+**`APPSETTINGS` (default) — secrets stored as Function App settings**
 
 ```bash
 az functionapp config appsettings set \
@@ -103,7 +105,30 @@ az functionapp config appsettings set \
   --settings MyStorageAccountKey="<value>" OtherSecret="<value>"
 ```
 
-The setting name is the `SecretName` the client will request.
+No `WORKLOAD` setting needed. The setting name is the `SecretName` the client requests.
+
+**`KEYVAULT` — secrets stored in Azure Key Vault**
+
+```bash
+# Enable managed identity, then grant it the Key Vault Secrets User role (see DEPLOY.md)
+az functionapp config appsettings set \
+  -g <resource-group> -n <function-app-name> \
+  --settings WORKLOAD=KEYVAULT KEYVAULT_NAME="<vault-name>"
+```
+
+The client passes the Key Vault secret name as `SecretName`. Secret names must use alphanumerics and hyphens only.
+
+**`TABLE` — secrets stored in Azure Table Storage**
+
+```bash
+az functionapp config appsettings set \
+  -g <resource-group> -n <function-app-name> \
+  --settings WORKLOAD=TABLE \
+             TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets" \
+             TABLE_SAS_TOKEN="?sv=..."
+```
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for full setup instructions for each backend.
 
 ### 5 — Call from a Windows endpoint
 
