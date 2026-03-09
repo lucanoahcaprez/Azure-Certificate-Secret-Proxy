@@ -1,17 +1,17 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$FunctionUrl,            # e.g. https://<func>.azurewebsites.net/api/azfunctioncertificatesecretproxy
+    [string]$FunctionUrl,
 
     [Parameter(Mandatory = $true)]
-    [string]$SecretName,             # e.g. MyStorageAccountKey
+    [string]$SecretName,
 
-    [string]$Thumbprint,             # Optional; if omitted the script picks a cert that matches the device hostname
+    [string]$Thumbprint,
 
-    [string]$CertificatePath,        # Optional; path to PFX file (use with -CertificatePassword)
+    [string]$CertificatePath,
 
-    [string]$CertificatePassword,    # Optional; password for PFX file (use with -CertificatePath)
+    [string]$CertificatePassword,
 
-    [switch]$VerboseLogging          # Emit detailed request/response diagnostics
+    [switch]$VerboseLogging
 )
 
 function Get-HostnameCandidates {
@@ -26,7 +26,7 @@ function Get-HostnameCandidates {
 }
 
 function Find-CertByThumbprint([string]$thumb) {
-    foreach ($store in @('Cert:\CurrentUser\My', 'Cert:\LocalMachine\My')) {
+    foreach ($store in @('Cert:\LocalMachine\My', 'Cert:\CurrentUser\My')) {
         $c = Get-ChildItem -Path "$store\$thumb" -ErrorAction SilentlyContinue
         if ($c) { return $c }
     }
@@ -35,16 +35,16 @@ function Find-CertByThumbprint([string]$thumb) {
 
 function Find-CertByHostname([string[]]$hostnames) {
     $candidates = @()
-    foreach ($store in @('Cert:\CurrentUser\My', 'Cert:\LocalMachine\My')) {
+    foreach ($store in @('Cert:\LocalMachine\My', 'Cert:\CurrentUser\My')) {
         foreach ($h in $hostnames) {
             try {
                 $candidates += Get-ChildItem -Path $store -DnsName $h -ErrorAction Stop
             }
             catch [System.Management.Automation.ParameterBindingException] {
-                # Older PowerShell versions may not support -DnsName; fall back to subject/SAN checks below
+                # Older PowerShell versions may not support -DnsName
             }
             catch {
-                # Ignore missing store or other non-terminating errors
+                # Ignore other errors
             }
         }
         if (-not $candidates) {
@@ -56,7 +56,7 @@ function Find-CertByHostname([string[]]$hostnames) {
                         if ($hostnames -contains $n.Unicode) { $dnsMatch = $true; break }
                     }
                 }
-                $cnMatch = $hostnames | ForEach-Object { $hn = $_; $subject -match "(^|,\\s*)CN=$([regex]::Escape($hn))(,|$)" } | Where-Object { $_ } | Select-Object -First 1
+                $cnMatch = $hostnames | ForEach-Object { $hn = $_; $subject -match "(^|,\s*)CN=$([regex]::Escape($hn))(,|$)" } | Where-Object { $_ } | Select-Object -First 1
                 $dnsMatch -or [bool]$cnMatch
             }
         }
@@ -84,7 +84,8 @@ function Get-ClientCertificate {
             if ($CertificatePassword) {
                 $securePwd = ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force
                 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath, $securePwd)
-            } else {
+            }
+            else {
                 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath)
             }
             Write-Host "Loaded certificate from PFX: $($cert.Subject) [$($cert.Thumbprint)]"
@@ -100,25 +101,28 @@ function Get-ClientCertificate {
     if ($Thumbprint) {
         $cert = Find-CertByThumbprint -thumb $Thumbprint
         if (-not $cert) {
-            Write-Error "Certificate with thumbprint $Thumbprint not found in CurrentUser\\My or LocalMachine\\My"
+            Write-Error "Certificate with thumbprint $Thumbprint not found"
             exit 1
         }
+        Write-Host "Using certificate: $($cert.Subject) [$($cert.Thumbprint)]"
     }
     else {
         $hosts = Get-HostnameCandidates
         $cert = Find-CertByHostname -hostnames $hosts
         if (-not $cert) {
-            Write-Error "No client certificate found with CN or SAN matching hostname(s): $($hosts -join ', ')"
+            Write-Error "No client certificate found with hostname: $($hosts -join ', ')"
             exit 1
         }
-        Write-Host "Auto-selected certificate $($cert.Subject) [$($cert.Thumbprint)] based on hostname"
+        Write-Host "Auto-selected certificate: $($cert.Subject) [$($cert.Thumbprint)]"
     }
     
     $cert
 }
 
+# Get the certificate
 $cert = Get-ClientCertificate
 
+# Build the URI with SecretName query parameter
 Add-Type -AssemblyName System.Web
 $uriBuilder = [System.UriBuilder]$FunctionUrl
 $query = [System.Web.HttpUtility]::ParseQueryString($uriBuilder.Query)
@@ -126,15 +130,38 @@ $query['SecretName'] = $SecretName
 $uriBuilder.Query = $query.ToString()
 $uri = $uriBuilder.Uri.AbsoluteUri
 
+if ($VerboseLogging) {
+    Write-Host "Certificate: $($cert.Subject)" -ForegroundColor Cyan
+    Write-Host "Thumbprint: $($cert.Thumbprint)" -ForegroundColor Cyan
+    Write-Host "Endpoint: $uri" -ForegroundColor Cyan
+}
+
 # Call the Azure Function with client certificate for mTLS
-# The client certificate is sent via TLS client certificate negotiation (not as data in headers)
 try {
     $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert -ErrorAction Stop
+    Write-Host "Success" -ForegroundColor Green
     Write-Host "SecretName : $($response.SecretName)"
     Write-Host "SecretValue: $($response.SecretValue)"
     Write-Host "CertThumb  : $($response.CertThumb)"
+    if ($response.Workload) {
+        Write-Host "Workload   : $($response.Workload)"
+    }
 }
 catch {
     Write-Error "Request failed: $($_.Exception.Message)"
+    
+    if ($VerboseLogging -and $_.Exception.Response) {
+        try {
+            $stream = $_.Exception.Response.GetResponseStream()
+            $reader = [System.IO.StreamReader]::new($stream)
+            $body = $reader.ReadToEnd()
+            $reader.Dispose()
+            Write-Host "Response body:" -ForegroundColor Yellow
+            $body | Write-Host
+        }
+        catch { }
+    }
+    
     exit 1
 }
+
