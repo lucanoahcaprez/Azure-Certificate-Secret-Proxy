@@ -12,11 +12,11 @@ Diagram: [docs/architecture-diagram.drawio](/docs/architecture-diagram.drawio)
 ## Function behavior
 - Trigger: HTTP GET/POST at `/api/azfunctioncertificatesecretproxy`.
 - Authentication: mutual TLS; client certificate is forwarded in header `X-ARR-ClientCert`.
-- Authorization rule (thumbprint): client cert must be in `ALLOWED_CLIENT_CERTS`.
-- Authorization rule (issuer): certificate chain must anchor to a CA listed in `ALLOWED_ISSUER_CERTS`.
+- Authorization rule (thumbprint): client cert must be in `ALLOWED_CLIENT_CERTS`. If you skip issuer validation, keep this allowlist populated.
+- Authorization rule (issuer) **optional**: if `ALLOWED_ISSUER_CERTS` is set, the certificate chain must anchor to a listed CA that you uploaded and loaded. If unset/empty, issuer validation is skipped and trust relies on the thumbprint allowlist only.
 - Input: `SecretName` via query string or JSON body `{ "SecretName": "<name>" }`.
 - Output 200: JSON `{ SecretName, SecretValue, CertThumb, Workload }`.
-- Output 401: cert missing, unauthorized thumbprint, or chain not trusted.
+- Output 401: cert missing, unauthorized thumbprint, or (when enabled) chain not trusted.
 - Output 400: bad input.
 - Output 404: secret not found for the selected workload.
 
@@ -27,13 +27,13 @@ Diagram: [docs/architecture-diagram.drawio](/docs/architecture-diagram.drawio)
 - Expandable: add new cases to the workload switch in `run.ps1` to support other backends (e.g., Cosmos DB, API call).
 
 ## Required app settings
-- `ALLOWED_CLIENT_CERTS` = `THUMB1;THUMB2` (uppercase recommended).
-- `ALLOWED_ISSUER_CERTS` = thumbprints of uploaded intermediate/root CAs that you trust for clients.
+- `ALLOWED_CLIENT_CERTS` = `THUMB1;THUMB2` (uppercase recommended). Mandatory when issuer validation is disabled.
+- `ALLOWED_ISSUER_CERTS` = thumbprints of uploaded intermediate/root CAs that you trust for clients **(optional; leave empty to skip issuer validation)**.
 - `WORKLOAD` = `AppSettings` or `KeyVault` or `Table`.
 - For `AppSettings`: one app setting per secret, e.g., `MyStorageAccountKey=<value>`.
 - For `KeyVault`: `KEYVAULT_NAME` (or `KEYVAULT_URI`) and managed identity with Secret Get permission.
 - For `Table`: `TABLE_ENDPOINT`, `TABLE_SAS_TOKEN`, optional `TABLE_VALUE_FIELD`.
-- `WEBSITE_LOAD_CERTIFICATES` = `*` (or include the specific issuer thumbprints) so the Function runtime loads the uploaded CA certs into `Cert:\CurrentUser\My`.
+- `WEBSITE_LOAD_CERTIFICATES` = `*` (or include the specific issuer thumbprints) **only needed when `ALLOWED_ISSUER_CERTS` is set** so the Function runtime loads the uploaded CA certs into `Cert:\CurrentUser\My`.
 - Standard Functions settings: `FUNCTIONS_WORKER_RUNTIME=powershell`, `AzureWebJobsStorage=...`.
 
 ## Deployment checklist
@@ -59,7 +59,7 @@ Prereqs: client certificate installed in `Cert:\CurrentUser\My` (or `LocalMachin
 - When not using mTLS locally, you can inject `X-ARR-ClientCert` for ad-hoc tests, but do not do this in production.
 
 ## Security notes
-- Trust is two-layered: explicit client thumbprints plus CA chain validation to uploaded issuers.
+- Trust is two-layered when `ALLOWED_ISSUER_CERTS` is set: explicit client thumbprints plus CA chain validation to uploaded issuers. If you leave `ALLOWED_ISSUER_CERTS` empty, trust relies solely on the thumbprint allowlist—keep it populated.
 - Limit access to the Function App and its app settings; rotate client certificates and secrets regularly.
 - Prefer short-lived secrets; consider reintroducing Key Vault + managed identity later for stronger governance.
 

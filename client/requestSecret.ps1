@@ -87,10 +87,15 @@ else {
     Write-Host "Auto-selected certificate $($cert.Subject) [$Thumbprint] based on hostname"
 }
 
-$uri = "$FunctionUrl?SecretName=$([uri]::EscapeDataString($SecretName))"
+Add-Type -AssemblyName System.Web
+$uriBuilder = [System.UriBuilder]$FunctionUrl
+$query = [System.Web.HttpUtility]::ParseQueryString($uriBuilder.Query)
+$query['SecretName'] = $SecretName
+$uriBuilder.Query = $query.ToString()
+$uri = $uriBuilder.Uri.AbsoluteUri
 
 try {
-    $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert -SkipCertificateCheck:$SkipCertCheck
+    $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert
     Write-Host "SecretName : $($response.SecretName)"
     Write-Host "SecretValue: $($response.SecretValue)"
     Write-Host "CertThumb  : $($response.CertThumb)"

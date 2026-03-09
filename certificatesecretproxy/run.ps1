@@ -5,8 +5,9 @@ param($Request, $TriggerMetadata)
 # Expected client certificate thumbprints (semicolon-separated) from app setting ALLOWED_CLIENT_CERTS
 $allowed = ($env:ALLOWED_CLIENT_CERTS -split ';' | Where-Object { $_ }) | ForEach-Object { $_.Trim().ToUpper() }
 
-# Expected issuer/root certificates (thumbprints) uploaded to the Function App and loaded via WEBSITE_LOAD_CERTIFICATES
+# Expected issuer/root certificates (thumbprints) uploaded to the Function App and loaded via WEBSITE_LOAD_CERTIFICATES (optional)
 $issuerThumbs = ($env:ALLOWED_ISSUER_CERTS -split ';' | Where-Object { $_ }) | ForEach-Object { $_.Trim().ToUpper() }
+$issuerValidationRequired = $issuerThumbs.Count -gt 0
 
 # Collect lightweight execution diagnostics so callers can see how the request was interpreted
 $diagnostics = [ordered]@{
@@ -17,6 +18,8 @@ $diagnostics = [ordered]@{
     SecretName         = $null
     Workload           = $null
     CertHeaderPresent  = $false
+    CertHeaderName     = $null
+    CertHeaderLength   = $null
     CertThumb          = $null
     AllowedConfigured  = $allowed.Count
     WhitelistEnabled   = $false
@@ -62,24 +65,53 @@ $diagnostics.Workload   = $workload
 $diagnostics.Phase      = 'parsed-params'
 $diagnostics.WhitelistEnabled = ($allowed.Count -gt 0)
 
+if (-not $issuerValidationRequired -and $allowed.Count -eq 0) {
+    Send-Response 500 'When ALLOWED_ISSUER_CERTS is empty, ALLOWED_CLIENT_CERTS must list the authorized client thumbprints.' @{ Phase = 'auth' }
+    return
+}
+
 if (-not $secretName) {
     Send-Response 400 'SecretName missing (query or JSON body)' @{ Phase = 'parsed-params' }
     return
 }
 
-# Client certificate is forwarded by the platform in X-ARR-ClientCert (base64 DER)
-$certHeader = $Request.Headers['X-ARR-ClientCert']
-$diagnostics.CertHeaderPresent = [bool]$certHeader
-if (-not $certHeader) {
-    Send-Response 401 'Client certificate missing' @{ Phase = 'auth' }
-    return
+# -------- Client certificate extraction --------
+
+function Get-ClientCertificate {
+    param(
+        [System.Net.Http.HttpRequestMessage]$req
+    )
+
+    $headerNames = @('X-ARR-ClientCert', 'X-Client-Cert', 'X-Forwarded-Client-Cert', 'X-MS-CERT') # common forwarder headers
+    foreach ($hn in $headerNames) {
+        $raw = $req.Headers[$hn]
+        if (-not $raw) { continue }
+        $raw = [string]$raw
+        $diagnostics.CertHeaderName   = $hn
+        $diagnostics.CertHeaderLength = $raw.Length
+        $diagnostics.CertHeaderPresent = $true
+
+        # Some proxies URL-encode or prepend PEM markers; normalize to base64 DER
+        $candidate = [System.Net.WebUtility]::UrlDecode($raw)
+        $candidate = $candidate.Trim()
+        if ($candidate -like '-----BEGIN CERTIFICATE*') {
+            $candidate = ($candidate -replace '-----BEGIN CERTIFICATE-----','' -replace '-----END CERTIFICATE-----','' -replace '\s','')
+        }
+
+        try {
+            $bytes = [Convert]::FromBase64String($candidate)
+            return [X509Certificate2]::new($bytes)
+        }
+        catch {
+            $diagnostics.CertParseError = $_.Exception.Message
+        }
+    }
+    return $null
 }
 
-try {
-    $clientCert = [X509Certificate2]::new([Convert]::FromBase64String($certHeader))
-}
-catch {
-    Send-Response 400 'Invalid client certificate format' @{ Phase = 'auth' }
+$clientCert = Get-ClientCertificate -req $Request
+if (-not $clientCert) {
+    Send-Response 401 'Client certificate missing or unreadable (check forwarding header and format)' @{ Phase = 'auth' }
     return
 }
 
@@ -91,52 +123,53 @@ if ($allowed.Count -gt 0 -and ($thumbprint -notin $allowed)) {
     return
 }
 
-# Build a chain that must anchor to one of the uploaded issuer certificates
-if (-not $issuerThumbs -or $issuerThumbs.Count -eq 0) {
-    Send-Response 500 'No issuer certificates configured (ALLOWED_ISSUER_CERTS)' @{ Phase = 'auth' }
-    return
+if ($issuerValidationRequired) {
+    $issuerCerts = @()
+    foreach ($t in $issuerThumbs) {
+        $c = Get-ChildItem -Path Cert:\CurrentUser\My\$t -ErrorAction SilentlyContinue
+        if ($c) { $issuerCerts += $c }
+    }
+
+    if ($issuerCerts.Count -eq 0) {
+        Send-Response 500 'Configured issuer certificates not found in Cert:\CurrentUser\My (ensure WEBSITE_LOAD_CERTIFICATES includes them)' @{ Phase = 'auth' }
+        return
+    }
+
+    $chain = [X509Chain]::new()
+    $chain.ChainPolicy.RevocationMode  = [X509RevocationMode]::NoCheck
+    $chain.ChainPolicy.RevocationFlag  = [X509RevocationFlag]::EndCertificateOnly
+    $chain.ChainPolicy.VerificationFlags = [X509VerificationFlags]::NoFlag
+
+    foreach ($ic in $issuerCerts) { [void]$chain.ChainPolicy.CustomTrustStore.Add($ic) }
+
+    # Use custom root trust so only uploaded issuers are trusted
+    try {
+        $chain.ChainPolicy.TrustMode = [X509ChainTrustMode]::CustomRootTrust
+    }
+    catch {
+        Send-Response 500 'Platform does not support CustomRootTrust; cannot enforce issuer validation' @{ Phase = 'auth' }
+        return
+    }
+
+    $isTrusted = $chain.Build($clientCert)
+    if (-not $isTrusted) {
+        $status = ($chain.ChainStatus | ForEach-Object { $_.Status.ToString() + ':' + $_.StatusInformation.Trim() }) -join '; '
+        $diagnostics.ChainStatus = $status
+        Send-Response 401 "Certificate chain not trusted. Status: $status" @{ Phase = 'auth' }
+        return
+    }
+
+    # Ensure the chain actually anchors to one of the configured issuers
+    $anchors = $chain.ChainElements | Select-Object -Last 1
+    if ($anchors.Certificate.Thumbprint.ToUpper() -notin $issuerThumbs) {
+        Send-Response 401 'Certificate chain does not anchor to a configured issuer' @{ Phase = 'auth' }
+        return
+    }
+    $diagnostics.ChainStatus = 'trusted (custom issuer)'
 }
-
-$issuerCerts = @()
-foreach ($t in $issuerThumbs) {
-    $c = Get-ChildItem -Path Cert:\CurrentUser\My\$t -ErrorAction SilentlyContinue
-    if ($c) { $issuerCerts += $c }
-}
-
-if ($issuerCerts.Count -eq 0) {
-    Send-Response 500 'Configured issuer certificates not found in Cert:\CurrentUser\My (ensure WEBSITE_LOAD_CERTIFICATES includes them)' @{ Phase = 'auth' }
-    return
-}
-
-$chain = [X509Chain]::new()
-$chain.ChainPolicy.RevocationMode  = [X509RevocationMode]::NoCheck
-$chain.ChainPolicy.RevocationFlag  = [X509RevocationFlag]::EndCertificateOnly
-$chain.ChainPolicy.VerificationFlags = [X509VerificationFlags]::NoFlag
-
-foreach ($ic in $issuerCerts) { [void]$chain.ChainPolicy.CustomTrustStore.Add($ic) }
-
-# Use custom root trust so only uploaded issuers are trusted
-try {
-    $chain.ChainPolicy.TrustMode = [X509ChainTrustMode]::CustomRootTrust
-}
-catch {
-    Send-Response 500 'Platform does not support CustomRootTrust; cannot enforce issuer validation' @{ Phase = 'auth' }
-    return
-}
-
-$isTrusted = $chain.Build($clientCert)
-if (-not $isTrusted) {
-    $status = ($chain.ChainStatus | ForEach-Object { $_.Status.ToString() + ':' + $_.StatusInformation.Trim() }) -join '; '
-    $diagnostics.ChainStatus = $status
-    Send-Response 401 "Certificate chain not trusted. Status: $status" @{ Phase = 'auth' }
-    return
-}
-
-# Ensure the chain actually anchors to one of the configured issuers
-$anchors = $chain.ChainElements | Select-Object -Last 1
-if ($anchors.Certificate.Thumbprint.ToUpper() -notin $issuerThumbs) {
-    Send-Response 401 'Certificate chain does not anchor to a configured issuer' @{ Phase = 'auth' }
-    return
+else {
+    # Issuer validation skipped; trust is based solely on the allowlist of client thumbprints
+    $diagnostics.ChainStatus = 'skipped (no ALLOWED_ISSUER_CERTS configured)'
 }
 $diagnostics.Phase = 'authorized'
 
