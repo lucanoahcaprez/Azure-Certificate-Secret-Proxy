@@ -1,0 +1,6 @@
+az functionapp update --set clientCertEnabled=true --name "func-lnc-lab-certificatesecretproxy-test-01" --resource-group "rg-lnc-lab-CertificateSecretProxy-test-01"
+
+
+az functionapp config appsettings set  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01  --settings WEBSITE_CLIENT_CERT_MODE=Required
+
+az functionapp restart  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01

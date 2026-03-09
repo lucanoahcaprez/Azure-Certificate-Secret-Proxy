@@ -29,6 +29,12 @@ $diagnostics = [ordered]@{
     LastMessage        = $null
 }
 
+# Capture all request headers for troubleshooting (including cert-related ones)
+$diagnostics.Headers = @{}
+foreach ($hk in $Request.Headers.Keys) {
+    $diagnostics.Headers[$hk] = $Request.Headers[$hk]
+}
+
 function Send-Response([int]$code, [string]$message, [hashtable]$extra = @{}) {
     if ($extra.ContainsKey('Phase')) {
         $diagnostics.Phase = $extra['Phase']
@@ -84,11 +90,16 @@ function Get-ClientCertificate {
 
     $headerNames = @('X-ARR-ClientCert', 'X-Client-Cert', 'X-Forwarded-Client-Cert', 'X-MS-CERT') # common forwarder headers
     foreach ($hn in $headerNames) {
-        $raw = $req.Headers[$hn]
-        if (-not $raw) { continue }
-        $raw = [string]$raw
-        $diagnostics.CertHeaderName   = $hn
-        $diagnostics.CertHeaderLength = $raw.Length
+        $values = $null
+        $found = $req.Headers.TryGetValues($hn, [ref]$values)
+        if (-not $found -and $req.Content -and $req.Content.Headers) {
+            $found = $req.Content.Headers.TryGetValues($hn, [ref]$values)
+        }
+        if (-not $found) { continue }
+
+        $raw = ($values -join '')
+        $diagnostics.CertHeaderName    = $hn
+        $diagnostics.CertHeaderLength  = $raw.Length
         $diagnostics.CertHeaderPresent = $true
 
         # Some proxies URL-encode or prepend PEM markers; normalize to base64 DER

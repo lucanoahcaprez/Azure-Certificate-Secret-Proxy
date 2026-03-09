@@ -7,7 +7,7 @@ param(
 
     [string]$Thumbprint,             # Optional; if omitted the script picks a cert that matches the device hostname
 
-    [switch]$SkipCertCheck           # Optional for lab/local testing
+    [switch]$VerboseLogging          # Emit detailed request/response diagnostics
 )
 
 function Get-HostnameCandidates {
@@ -94,17 +94,48 @@ $query['SecretName'] = $SecretName
 $uriBuilder.Query = $query.ToString()
 $uri = $uriBuilder.Uri.AbsoluteUri
 
+if ($VerboseLogging) {
+    Write-Host "Requesting: $uri"
+    Write-Host "Using cert : $($cert.Subject) [$($cert.Thumbprint)]"
+}
+
 try {
-    $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert
+    $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert -ErrorAction Stop
+    Write-Host "HTTP 200 OK"
     Write-Host "SecretName : $($response.SecretName)"
     Write-Host "SecretValue: $($response.SecretValue)"
     Write-Host "CertThumb  : $($response.CertThumb)"
+    if ($response.Diagnostics) {
+        Write-Host "Diagnostics:"
+        $response.Diagnostics.GetEnumerator() | Sort-Object Name | ForEach-Object { Write-Host "  $($_.Name): $($_.Value)" }
+    }
 }
 catch {
     Write-Error "Request failed: $($_.Exception.Message)"
-    if ($_.Exception.Response -and $_.Exception.Response.ContentLength -gt 0) {
-        $reader = New-Object IO.StreamReader $_.Exception.Response.GetResponseStream()
-        Write-Error "Server response: $($reader.ReadToEnd())"
+    if ($_.Exception.Response) {
+        $status = $_.Exception.Response.StatusCode.value__
+        $statusDesc = $_.Exception.Response.StatusDescription
+        Write-Error "HTTP status: $status $statusDesc"
+        try {
+            $reader = New-Object IO.StreamReader $_.Exception.Response.GetResponseStream()
+            $body = $reader.ReadToEnd()
+            if ($body) {
+                Write-Error "Server response body:"
+                $bodyObj = $null
+                try { $bodyObj = $body | ConvertFrom-Json } catch { }
+                if ($bodyObj) {
+                    Write-Error ($bodyObj | ConvertTo-Json -Depth 6)
+                } else {
+                    Write-Error $body
+                }
+            }
+        }
+        catch {
+            Write-Error "Unable to read response body: $($_.Exception.Message)"
+        }
+    }
+    elseif ($_.Exception.InnerException) {
+        Write-Error "Inner exception: $($_.Exception.InnerException.Message)"
     }
     exit 1
 }
