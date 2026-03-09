@@ -1,6 +1,13 @@
+# -------- Enable Client Certificates --------
+# Require client certificates for HTTPS connections
 az functionapp update --set clientCertEnabled=true --name "func-lnc-lab-certificatesecretproxy-test-01" --resource-group "rg-lnc-lab-CertificateSecretProxy-test-01"
 
-
+# Set client certificate mode to Required (blocks requests without valid client cert)
 az functionapp config appsettings set  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01  --settings WEBSITE_CLIENT_CERT_MODE=Required
 
+# -------- Enforce HTTPS Only --------
+# Redirect all HTTP traffic to HTTPS (client certificates only work over HTTPS)
+az functionapp update --set https_only=true --name "func-lnc-lab-certificatesecretproxy-test-01" --resource-group "rg-lnc-lab-CertificateSecretProxy-test-01"
+
+# -------- Restart Function App --------
 az functionapp restart  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01

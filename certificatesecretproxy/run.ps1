@@ -9,6 +9,11 @@ $allowed = ($env:ALLOWED_CLIENT_CERTS -split ';' | Where-Object { $_ }) | ForEac
 $issuerThumbs = ($env:ALLOWED_ISSUER_CERTS -split ';' | Where-Object { $_ }) | ForEach-Object { $_.Trim().ToUpper() }
 $issuerValidationRequired = $issuerThumbs.Count -gt 0
 
+# Certificate validation configuration
+$revocationMode = $env:CERT_REVOCATION_MODE
+if (-not $revocationMode) { $revocationMode = 'NoCheck' }
+$requireEku = if ([string]::IsNullOrWhiteSpace($env:CERT_REQUIRE_EKU)) { $true } else { [bool]::Parse($env:CERT_REQUIRE_EKU) }
+
 # Collect lightweight execution diagnostics so callers can see how the request was interpreted
 $diagnostics = [ordered]@{
     Timestamp          = (Get-Date).ToString('o')
@@ -25,6 +30,8 @@ $diagnostics = [ordered]@{
     WhitelistEnabled   = $false
     IssuersConfigured  = $issuerThumbs.Count
     ChainStatus        = $null
+    EkuValidation      = $requireEku
+    RevocationMode     = $revocationMode
     Phase              = 'init'
     LastMessage        = $null
 }
@@ -54,6 +61,7 @@ function Send-Response([int]$code, [string]$message, [hashtable]$extra = @{}) {
     })
 }
 
+
 # -------- Parameter parsing (pre-auth) --------
 
 $secretName = $Request.Query.SecretName
@@ -81,7 +89,7 @@ if (-not $secretName) {
     return
 }
 
-# -------- Client certificate extraction --------
+# -------- Client certificate extraction and validation --------
 
 function Get-ClientCertificate {
     param(
@@ -109,9 +117,61 @@ function Get-ClientCertificate {
     }
 }
 
+# Validate certificate validity period and Enhanced Key Usage
+function Validate-CertificateProperties([X509Certificate2]$cert, [hashtable]$diags) {
+    $now = Get-Date
+    
+    # Check NotBefore (validity start)
+    if ($cert.NotBefore -gt $now) {
+        return @{
+            Valid = $false
+            Reason = "Certificate not yet valid. NotBefore: $($cert.NotBefore)"
+        }
+    }
+    
+    # Check NotAfter (expiration)
+    if ($cert.NotAfter -lt $now) {
+        return @{
+            Valid = $false
+            Reason = "Certificate expired. NotAfter: $($cert.NotAfter)"
+        }
+    }
+    
+    # Check Enhanced Key Usage if required
+    if ($requireEku) {
+        $clientAuthOid = '1.3.6.1.5.5.7.3.2'  # Client Authentication
+        $hasClientEku = $false
+        
+        if ($cert.EnhancedKeyUsageList -and $cert.EnhancedKeyUsageList.Count -gt 0) {
+            foreach ($eku in $cert.EnhancedKeyUsageList) {
+                if ($eku.Value -eq $clientAuthOid -or $eku.FriendlyName -eq 'Client Authentication') {
+                    $hasClientEku = $true
+                    break
+                }
+            }
+        }
+        
+        if (-not $hasClientEku) {
+            return @{
+                Valid = $false
+                Reason = "Certificate does not have Client Authentication EKU ($clientAuthOid)"
+            }
+        }
+    }
+    
+    @{ Valid = $true; Reason = 'OK' }
+}
+
 $clientCert = Get-ClientCertificate -req $Request
 if (-not $clientCert) {
     Send-Response 401 'Client certificate missing or unreadable (check forwarding header and format)' @{ Phase = 'auth' }
+    return
+}
+
+# Validate certificate validity period and EKU
+$certValidation = Validate-CertificateProperties -cert $clientCert -diags $diagnostics
+if (-not $certValidation.Valid) {
+    Send-Response 401 "Certificate validation failed: $($certValidation.Reason)" @{ Phase = 'auth'; ValidationReason = $certValidation.Reason }
     return
 }
 
@@ -136,7 +196,15 @@ if ($issuerValidationRequired) {
     }
 
     $chain = [X509Chain]::new()
-    $chain.ChainPolicy.RevocationMode  = [X509RevocationMode]::NoCheck
+    
+    # Set revocation mode based on configuration
+    $revMode = [X509RevocationMode]::NoCheck
+    if ($revocationMode -eq 'Online') {
+        $revMode = [X509RevocationMode]::Online
+    } elseif ($revocationMode -eq 'Offline') {
+        $revMode = [X509RevocationMode]::Offline
+    }
+    $chain.ChainPolicy.RevocationMode  = $revMode
     $chain.ChainPolicy.RevocationFlag  = [X509RevocationFlag]::EndCertificateOnly
     $chain.ChainPolicy.VerificationFlags = [X509VerificationFlags]::NoFlag
 

@@ -7,6 +7,10 @@ param(
 
     [string]$Thumbprint,             # Optional; if omitted the script picks a cert that matches the device hostname
 
+    [string]$CertificatePath,        # Optional; path to PFX file (use with -CertificatePassword)
+
+    [string]$CertificatePassword,    # Optional; password for PFX file (use with -CertificatePath)
+
     [switch]$VerboseLogging          # Emit detailed request/response diagnostics
 )
 
@@ -69,23 +73,51 @@ function Find-CertByHostname([string[]]$hostnames) {
     $candidates | Select-Object -First 1
 }
 
-if ($Thumbprint) {
-    $cert = Find-CertByThumbprint -thumb $Thumbprint
-    if (-not $cert) {
-        Write-Error "Certificate with thumbprint $Thumbprint not found in CurrentUser\\My or LocalMachine\\My"
-        exit 1
+function Get-ClientCertificate {
+    # Load from PFX file if path provided
+    if ($CertificatePath) {
+        if (-not (Test-Path $CertificatePath)) {
+            Write-Error "Certificate file not found: $CertificatePath"
+            exit 1
+        }
+        try {
+            if ($CertificatePassword) {
+                $securePwd = ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force
+                $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath, $securePwd)
+            } else {
+                $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($CertificatePath)
+            }
+            Write-Host "Loaded certificate from PFX: $($cert.Subject) [$($cert.Thumbprint)]"
+            return $cert
+        }
+        catch {
+            Write-Error "Failed to load PFX certificate: $($_.Exception.Message)"
+            exit 1
+        }
     }
-}
-else {
-    $hosts = Get-HostnameCandidates
-    $cert = Find-CertByHostname -hostnames $hosts
-    if (-not $cert) {
-        Write-Error "No client certificate found with CN or SAN matching hostname(s): $($hosts -join ', ')"
-        exit 1
+    
+    # Load from certificate store (by thumbprint or hostname)
+    if ($Thumbprint) {
+        $cert = Find-CertByThumbprint -thumb $Thumbprint
+        if (-not $cert) {
+            Write-Error "Certificate with thumbprint $Thumbprint not found in CurrentUser\\My or LocalMachine\\My"
+            exit 1
+        }
     }
-    $Thumbprint = $cert.Thumbprint
-    Write-Host "Auto-selected certificate $($cert.Subject) [$Thumbprint] based on hostname"
+    else {
+        $hosts = Get-HostnameCandidates
+        $cert = Find-CertByHostname -hostnames $hosts
+        if (-not $cert) {
+            Write-Error "No client certificate found with CN or SAN matching hostname(s): $($hosts -join ', ')"
+            exit 1
+        }
+        Write-Host "Auto-selected certificate $($cert.Subject) [$($cert.Thumbprint)] based on hostname"
+    }
+    
+    $cert
 }
+
+$cert = Get-ClientCertificate
 
 Add-Type -AssemblyName System.Web
 $uriBuilder = [System.UriBuilder]$FunctionUrl
@@ -94,6 +126,8 @@ $query['SecretName'] = $SecretName
 $uriBuilder.Query = $query.ToString()
 $uri = $uriBuilder.Uri.AbsoluteUri
 
+# Call the Azure Function with client certificate for mTLS
+# The client certificate is sent via TLS client certificate negotiation (not as data in headers)
 try {
     $response = Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert -ErrorAction Stop
     Write-Host "SecretName : $($response.SecretName)"
