@@ -122,9 +122,19 @@ Set both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CERTS`. The certificate must
 
 ## Step 5 — Configure the secret backend
 
+The `WORKLOAD` setting controls **which backend is active**. Only one backend is used per request — set `WORKLOAD` to the value that matches where your secrets live. You can switch backends at any time by updating `WORKLOAD` and restarting the Function App.
+
+| `WORKLOAD` value | Secret source | Extra settings required |
+|---|---|---|
+| `APPSETTINGS` (default) | Function App application settings | None |
+| `KEYVAULT` | Azure Key Vault (via managed identity) | `KEYVAULT_NAME` or `KEYVAULT_URI` |
+| `TABLE` | Azure Table Storage (via SAS token) | `TABLE_ENDPOINT`, `TABLE_SAS_TOKEN` |
+
+---
+
 ### APPSETTINGS (default)
 
-Each secret is stored as a Function App application setting. The setting name is exactly what the client passes as `SecretName`.
+Each secret is a Function App application setting. The setting name is exactly what the client passes as `SecretName`.
 
 ```bash
 az functionapp config appsettings set \
@@ -141,22 +151,49 @@ No `WORKLOAD` setting needed; `APPSETTINGS` is the default.
 
 ### KEYVAULT
 
-The function uses the Function App's system-assigned managed identity to call Key Vault.
+The function acquires a token via the Function App's **system-assigned managed identity** and calls the Key Vault REST API. No credentials are stored anywhere in the function code or app settings.
+
+**5a. Enable the managed identity**
 
 ```bash
-# Enable managed identity on the Function App
 az functionapp identity assign \
   -g rg-lnc-lab-CertificateSecretProxy-test-01 \
   -n func-lnc-lab-certificatesecretproxy-test-01
+```
 
-# Grant Secret Get permission to the managed identity
-# (replace <PRINCIPAL_ID> with the output of the identity assign command)
+Note the `principalId` in the output — you need it for the next step.
+
+**5b. Grant the identity permission to read secrets**
+
+Key Vault supports two permission models. Check yours under **Key Vault → Settings → Access configuration**.
+
+> **RBAC permission model** (recommended — the default for new vaults):
+
+```bash
+# Get the Key Vault resource ID
+KV_ID=$(az keyvault show --name <your-keyvault-name> --query id -o tsv)
+
+# Assign Key Vault Secrets User role (allows reading secret values)
+az role assignment create \
+  --assignee "<PRINCIPAL_ID>" \
+  --role "Key Vault Secrets User" \
+  --scope "$KV_ID"
+```
+
+> **Access policy permission model** (legacy):
+
+```bash
 az keyvault set-policy \
   --name <your-keyvault-name> \
   --object-id <PRINCIPAL_ID> \
   --secret-permissions get
+```
 
-# Configure the Function App
+> **Important**: Do not confuse the **Reader** Azure role (ARM plane — grants access to vault *metadata* only) with the **Key Vault Secrets User** role (data plane — grants access to secret *values*). The function needs the data-plane role. Assigning only `Reader` results in a `403 ForbiddenByRbac` error when reading secrets.
+
+**5c. Set app settings**
+
+```bash
 az functionapp config appsettings set \
   -g rg-lnc-lab-CertificateSecretProxy-test-01 \
   -n func-lnc-lab-certificatesecretproxy-test-01 \
@@ -165,7 +202,9 @@ az functionapp config appsettings set \
     KEYVAULT_NAME="<your-keyvault-name>"
 ```
 
-The client passes the Key Vault secret name as `SecretName`.
+Alternatively use `KEYVAULT_URI` instead of `KEYVAULT_NAME` if you prefer the full URI (e.g. `https://myvault.vault.azure.net`).
+
+The client passes the Key Vault secret name as `SecretName`. Key Vault secret names may only contain alphanumerics and hyphens — underscores are not allowed.
 
 ---
 

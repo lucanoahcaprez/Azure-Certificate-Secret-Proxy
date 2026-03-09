@@ -207,20 +207,37 @@ $diagnostics.Phase = 'authorized'
 # ========== RETRIEVE SECRET ==========
 try {
     $secretValue = $null
-    
+
     switch ($workload) {
         'APPSETTINGS' {
             $secretValue = [Environment]::GetEnvironmentVariable($secretName)
         }
         'KEYVAULT' {
-            $vaultName = $env:KEYVAULT_NAME
+            # Resolve vault URI from KEYVAULT_URI or KEYVAULT_NAME.
             $vaultUri = $env:KEYVAULT_URI
             if (-not $vaultUri) {
-                if (-not $vaultName) { throw "KEYVAULT_NAME or KEYVAULT_URI required" }
+                $vaultName = $env:KEYVAULT_NAME
+                if (-not $vaultName) { throw "KEYVAULT workload requires KEYVAULT_NAME or KEYVAULT_URI to be set." }
                 $vaultUri = "https://$vaultName.vault.azure.net"
             }
-            $token = (Invoke-RestMethod -Method Get -Uri "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2019-08-01&resource=https://vault.azure.net" -Headers @{ Metadata = 'true' } -ErrorAction Stop).access_token
-            $secret = Invoke-RestMethod -Method Get -Uri "$vaultUri/secrets/$secretName?api-version=7.3" -Headers @{ Authorization = "Bearer $token" } -ErrorAction Stop
+
+            # Acquire a token via the App Service managed identity endpoint.
+            # IDENTITY_ENDPOINT and IDENTITY_HEADER are injected automatically when a
+            # system-assigned (or user-assigned) managed identity is enabled on the Function App.
+            if (-not $env:IDENTITY_ENDPOINT -or -not $env:IDENTITY_HEADER) {
+                throw "Managed identity is not available (IDENTITY_ENDPOINT/IDENTITY_HEADER missing). Enable a system-assigned managed identity on the Function App."
+            }
+            $tokenUri = "$($env:IDENTITY_ENDPOINT)?resource=https://vault.azure.net&api-version=2019-08-01"
+            $token = (Invoke-RestMethod -Method Get -Uri $tokenUri `
+                -Headers @{ 'X-IDENTITY-HEADER' = $env:IDENTITY_HEADER } `
+                -ErrorAction Stop).access_token
+
+            # Retrieve the secret by name. Key Vault secret names support alphanumerics and hyphens only;
+            # map underscores to hyphens if your naming convention requires it.
+            $secret = Invoke-RestMethod -Method Get `
+                -Uri "$vaultUri/secrets/$secretName`?api-version=7.4" `
+                -Headers @{ Authorization = "Bearer $token" } `
+                -ErrorAction Stop
             $secretValue = $secret.value
         }
         'TABLE' {
@@ -242,7 +259,7 @@ try {
         Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval' }
         return
     }
-    
+
     $diagnostics.Phase = 'success'
     Send-Response 200 "Success" @{
         SecretName  = $secretName

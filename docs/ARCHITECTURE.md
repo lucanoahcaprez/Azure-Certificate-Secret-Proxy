@@ -114,7 +114,7 @@ This step is **additive**: if both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CE
 
 ## Secret retrieval workloads
 
-Select the backend via the `WORKLOAD` app setting (default: `APPSETTINGS`).
+The `WORKLOAD` app setting selects **one active backend** per deployment. The function reads from exactly one source per request. To switch backends, update `WORKLOAD` and restart the Function App.
 
 ### `APPSETTINGS` (default)
 
@@ -126,15 +126,22 @@ The secret is stored as a Function App application setting whose name equals `Se
 
 ### `KEYVAULT`
 
-Uses the Function App's managed identity to call the Key Vault REST API:
+Uses the Function App's **system-assigned managed identity** to call the Key Vault data-plane REST API:
 
 ```
-GET https://<vault>.vault.azure.net/secrets/<SecretName>?api-version=7.3
+GET https://<vault>.vault.azure.net/secrets/<SecretName>?api-version=7.4
 ```
 
-The identity token is obtained from the Azure Instance Metadata Service (IMDS). The Function App's managed identity must have the `get` permission on secrets in the vault.
+The token is acquired via the App Service managed identity endpoint — **not** the VM Instance Metadata Service (IMDS). Azure Functions exposes two environment variables for this:
 
-Required settings: `KEYVAULT_NAME` (or `KEYVAULT_URI`).
+- `IDENTITY_ENDPOINT` — the local MSI token service URL (injected automatically when managed identity is enabled)
+- `IDENTITY_HEADER` — a secret value passed as `X-IDENTITY-HEADER` to prevent SSRF
+
+If either variable is absent the function returns HTTP 500 with a clear error. This means managed identity is not enabled on the Function App.
+
+The managed identity must hold the **Key Vault Secrets User** role (RBAC model) or a `get` access policy (access policy model) on the vault. The `Reader` Azure role grants ARM-plane access only and is **not** sufficient to read secret values — assigning only `Reader` results in `403 ForbiddenByRbac`.
+
+Required settings: `KEYVAULT_NAME` (or `KEYVAULT_URI`). Secret names in Key Vault may only contain alphanumerics and hyphens.
 
 ### `TABLE`
 
