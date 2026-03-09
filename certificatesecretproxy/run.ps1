@@ -39,12 +39,12 @@ function Send-Response([int]$code, [string]$message, [hashtable]$extra = @{}) {
     }
     $diagnostics.LastMessage = $message
 
+    $body = [ordered]@{ Message = $message; Diagnostics = $diagnostics }
+    foreach ($k in $extra.Keys) { $body[$k] = $extra[$k] }
+
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
         StatusCode = $code
-        Body       = [pscustomobject]@{
-            Message      = $message
-            Diagnostics  = $diagnostics
-        }
+        Body       = [pscustomobject]$body
     })
 }
 
