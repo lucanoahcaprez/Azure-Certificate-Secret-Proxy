@@ -1,46 +1,284 @@
 # Deployment Guide
 
+This guide walks through deploying the Azure Certificate Secret Proxy from zero to a working installation.
+
 ## Prerequisites
-- Azure Function App deployed
-- Root CA certificate imported in Azure Portal (Function App → Certificates)
 
-## Configuration
+- **Azure CLI** installed and logged in (`az login`)
+- **Azure Functions Core Tools** installed (`func` command available)
+- A **Function App** already provisioned (Windows hosting plan, PowerShell runtime, app settings storage configured)
+- Your corporate **Root CA certificate** exported as a `.cer` file (DER or PEM encoded, containing only the public key — no private key)
 
-### Method 1: Thumbprint Whitelist
-1. Get client certificate thumbprint:
-   ```powershell
-   $cert = Get-ChildItem -Path "Cert:\LocalMachine\My\*" | Where-Object { $_.Subject -match "your-cert-name" }
-   Write-Host $cert.Thumbprint
-   ```
-2. Set environment variable:
-   ```bash
-   az functionapp config appsettings set \
-     -g <resource-group> \
-     -n <function-app-name> \
-     --settings ALLOWED_CLIENT_CERTS="THUMB1;THUMB2"
-   ```
-
-### Method 2: Root CA Chain Validation
-1. Import Root CA certificate in Azure Portal
-2. Copy thumbprint from Certificates tab
-3. Set environment variable:
-   ```bash
-   az functionapp config appsettings set \
-     -g <resource-group> \
-     -n <function-app-name> \
-     --settings CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>"
-   ```
-
-### Restart Function App
-```bash
-az functionapp restart -g <resource-group> -n <function-app-name>
-```
-
-## Workload Configuration
-- `WORKLOAD=APPSETTINGS` (default)
-- `WORKLOAD=KEYVAULT` or `WORKLOAD=TABLE` for advanced secret sources
+> The resource group and Function App name used in `deployment/configs.azcli` are:
+> - Resource group: `rg-lnc-lab-CertificateSecretProxy-test-01`
+> - Function App: `func-lnc-lab-certificatesecretproxy-test-01`
+>
+> Replace these with your own values in all commands below.
 
 ---
 
-## Hybrid Mode
-- Both methods can be enabled; certificate is accepted if it matches either.
+## Step 1 — Deploy the function code
+
+From the repository root:
+
+```bash
+func azure functionapp publish func-lnc-lab-certificatesecretproxy-test-01
+```
+
+This publishes `certificatesecretproxy/run.ps1` and `certificatesecretproxy/function.json`.
+
+---
+
+## Step 2 — Enable mTLS client certificate enforcement
+
+Azure App Service must be configured to **require** a client certificate and forward it to the function. Without this, the function will never see a certificate.
+
+```bash
+# Enable client certificate negotiation
+az functionapp update \
+  --set clientCertEnabled=true \
+  --name func-lnc-lab-certificatesecretproxy-test-01 \
+  --resource-group rg-lnc-lab-CertificateSecretProxy-test-01
+
+# Require the client cert (not just request it optionally)
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings WEBSITE_CLIENT_CERT_MODE=Required
+```
+
+---
+
+## Step 3 — Enforce HTTPS
+
+```bash
+az functionapp update \
+  --set https_only=true \
+  --name func-lnc-lab-certificatesecretproxy-test-01 \
+  --resource-group rg-lnc-lab-CertificateSecretProxy-test-01
+```
+
+---
+
+## Step 4 — Configure certificate validation
+
+You must configure **at least one** of the two validation methods. They can both be active simultaneously (the certificate must then satisfy both checks).
+
+### Option A — Root CA chain validation (recommended for device fleets)
+
+This trusts any device certificate issued by your corporate CA. No per-device configuration is needed when a new machine is enrolled.
+
+**4a. Upload the Root CA certificate**
+
+In the **Azure Portal**:
+1. Navigate to your Function App.
+2. Go to **Certificates** → **Public key certificates** → **Upload certificate**.
+3. Upload your `.cer` file.
+4. Note the **Thumbprint** shown after upload (uppercase hex, no spaces).
+
+**4b. Set app settings**
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings \
+    CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
+    WEBSITE_LOAD_CERTIFICATES="*"
+```
+
+`WEBSITE_LOAD_CERTIFICATES=*` tells the App Service runtime to load all uploaded certificates into the process certificate stores (`Cert:\CurrentUser\My`, etc.), which is required for the chain validation to find the CA cert at runtime.
+
+---
+
+### Option B — Thumbprint allowlist (suitable for a small number of devices)
+
+Explicitly lists which client certificate thumbprints are trusted. Requires re-configuration every time a device is added or a certificate is renewed.
+
+**Get the client certificate thumbprint** (run on the device):
+
+```powershell
+Get-ChildItem -Path Cert:\LocalMachine\My | Select-Object Subject, Thumbprint, NotAfter
+```
+
+**Set the allowlist:**
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
+```
+
+Thumbprints must be **uppercase** hex strings with **no spaces**. Separate multiple thumbprints with `;`.
+
+---
+
+### Option C — Both methods (chain + allowlist)
+
+Set both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CERTS`. The certificate must pass the chain check **and** have its thumbprint in the list. This is the strictest mode.
+
+---
+
+## Step 5 — Configure the secret backend
+
+### APPSETTINGS (default)
+
+Each secret is stored as a Function App application setting. The setting name is exactly what the client passes as `SecretName`.
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings \
+    MyStorageAccountKey="<value>" \
+    AnotherSecret="<value>"
+```
+
+No `WORKLOAD` setting needed; `APPSETTINGS` is the default.
+
+---
+
+### KEYVAULT
+
+The function uses the Function App's system-assigned managed identity to call Key Vault.
+
+```bash
+# Enable managed identity on the Function App
+az functionapp identity assign \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01
+
+# Grant Secret Get permission to the managed identity
+# (replace <PRINCIPAL_ID> with the output of the identity assign command)
+az keyvault set-policy \
+  --name <your-keyvault-name> \
+  --object-id <PRINCIPAL_ID> \
+  --secret-permissions get
+
+# Configure the Function App
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings \
+    WORKLOAD=KEYVAULT \
+    KEYVAULT_NAME="<your-keyvault-name>"
+```
+
+The client passes the Key Vault secret name as `SecretName`.
+
+---
+
+### TABLE
+
+Secrets are stored as rows in an Azure Table Storage table with `PartitionKey=secret`, `RowKey=<SecretName>`, and a `Value` column.
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings \
+    WORKLOAD=TABLE \
+    TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets" \
+    TABLE_SAS_TOKEN="?sv=..."
+```
+
+---
+
+## Step 6 — Restart the Function App
+
+Always restart after changing app settings to ensure the new values are loaded:
+
+```bash
+az functionapp restart \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01
+```
+
+---
+
+## Step 7 — Verify the deployment
+
+Run the client script from a device that has a valid machine certificate:
+
+```powershell
+.\client\requestSecret.ps1 `
+  -FunctionUrl "https://func-lnc-lab-certificatesecretproxy-test-01.azurewebsites.net/api/certificatesecretproxy" `
+  -SecretName "MyStorageAccountKey" `
+  -VerboseLogging
+```
+
+Expected output:
+```
+Auto-selected certificate: CN=MYDEVICE [22E4D9050A50F3AC0A6588C641BD4BE869F788CD]
+Certificate: CN=MYDEVICE
+Thumbprint: 22E4D9050A50F3AC0A6588C641BD4BE869F788CD
+Endpoint: https://...
+Success
+SecretName : MyStorageAccountKey
+SecretValue: <the-secret>
+CertThumb  : 22E4D9050A50F3AC0A6588C641BD4BE869F788CD
+Workload   : APPSETTINGS
+```
+
+---
+
+## App settings reference
+
+| Setting | Required? | Default | Description |
+|---|---|---|---|
+| `CERT_ROOT_THUMBPRINT` | At least one of the two must be set | — | Thumbprint of the Root CA uploaded to the Function App. Enables chain-based trust. |
+| `ALLOWED_CLIENT_CERTS` | At least one of the two must be set | — | Semicolon-separated client cert thumbprints (uppercase). |
+| `WEBSITE_LOAD_CERTIFICATES` | Required when `CERT_ROOT_THUMBPRINT` is set | — | Set to `*` to load all uploaded certs into the Function process cert stores. |
+| `WORKLOAD` | No | `APPSETTINGS` | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. |
+| `KEYVAULT_NAME` | Required for `KEYVAULT` | — | Key Vault name. Alternatively set `KEYVAULT_URI` for the full URI. |
+| `TABLE_ENDPOINT` | Required for `TABLE` | — | Table Storage URL including table name. |
+| `TABLE_SAS_TOKEN` | Required for `TABLE` | — | SAS token string, starting with `?sv=`. |
+
+---
+
+## Troubleshooting
+
+### HTTP 401 — "Client certificate header not found"
+
+The function did not receive the `X-ARR-ClientCert` header.
+
+- Verify `clientCertEnabled=true` is set on the Function App.
+- Verify `WEBSITE_CLIENT_CERT_MODE=Required` is set.
+- Verify the client script is calling with `-Certificate $cert` (or `-Thumbprint` / auto-discovery mode).
+- If accessing through a reverse proxy (Front Door, API Management, App Gateway), confirm the proxy is configured to pass client certificates through and forward the `X-ARR-ClientCert` header.
+
+### HTTP 401 — "Certificate chain validation failed: Root certificate … not found"
+
+The function could not find the Root CA in any of its process-side cert stores.
+
+1. Confirm the Root CA cert is uploaded: Azure Portal → Function App → **Certificates** → **Public key certificates**.
+2. Confirm `WEBSITE_LOAD_CERTIFICATES=*` is set as an app setting.
+3. After changing either, **restart** the Function App.
+
+### HTTP 401 — "Certificate thumbprint not in whitelist"
+
+The presented certificate's thumbprint is not in `ALLOWED_CLIENT_CERTS`.
+
+- Get the thumbprint: `$cert.Thumbprint` (on the client) or check the `Diagnostics.CertThumbprint` field in the 401 response body.
+- Update `ALLOWED_CLIENT_CERTS` to include it (uppercase, no spaces, semicolon-separated).
+
+### HTTP 401 — "Certificate expired or not yet valid"
+
+The machine certificate's `NotBefore`/`NotAfter` window does not include the current time.
+
+- Renew the certificate via your CA or re-enroll the device.
+
+### HTTP 500 — "No validation method configured"
+
+Neither `CERT_ROOT_THUMBPRINT` nor `ALLOWED_CLIENT_CERTS` is set.
+
+- Configure at least one. See Step 4.
+
+### `SecretValue` is empty / HTTP 404
+
+The `SecretName` requested does not exist in the configured backend.
+
+- For `APPSETTINGS`: verify there is an app setting with exactly that name (case-sensitive on Linux; case-insensitive on Windows).
+- For `KEYVAULT`: verify the secret exists in the vault and the managed identity has `get` permission.
+- For `TABLE`: verify a row exists with `PartitionKey=secret` and `RowKey=<SecretName>`.

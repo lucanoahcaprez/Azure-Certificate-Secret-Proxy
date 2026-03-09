@@ -1,29 +1,201 @@
-# Certificate Secret Proxy Architecture
+# Architecture
 
 ## Overview
 
-This Azure Function enables secure secret retrieval using mTLS client certificate authentication. Two validation modes are supported:
+The Azure Certificate Secret Proxy is an Azure Function App that acts as a secure secret-delivery endpoint for managed Windows devices. It uses mutual TLS (mTLS) to authenticate callers: every request must carry a valid client certificate, and the function validates that certificate before returning any secret.
 
-- **Thumbprint Whitelist**: Only certificates with thumbprints listed in `ALLOWED_CLIENT_CERTS` are accepted.
-- **Root CA Chain Validation**: Any certificate that chains to the Root CA imported in Azure (thumbprint set via `CERT_ROOT_THUMBPRINT`) is accepted.
+```
+ Windows Device                  Azure                        Secret Backend
+ ─────────────                  ───────                        ──────────────
+ requestSecret.ps1              App Service                    App Settings
+   │                               │                           Key Vault
+   │  HTTPS + client cert TLS ──►  │  X-ARR-ClientCert         Table Storage
+   │                               │  header forwarded
+   │                               ▼
+   │                           run.ps1 (Azure Function)
+   │                             1. Extract cert from header
+   │                             2. Check validity window
+   │                             3. Chain validation (optional)
+   │                             4. Thumbprint allowlist (optional)
+   │                             5. Retrieve secret
+   │  ◄── JSON response ──────────│
+```
 
-## Flow Diagram
+## Components
 
-1. Client sends HTTPS request with client certificate
-2. Azure App Service terminates TLS, forwards certificate in `X-ARR-ClientCert` header
-3. Function extracts certificate, checks validity
-4. Function validates:
-   - Thumbprint whitelist (if configured)
-   - Chain validation to Root CA (if configured)
-5. If validation passes, secret is returned
+### `certificatesecretproxy/run.ps1` — the Azure Function
 
-## Security Notes
-- Only one or both validation methods need to be configured
-- Chain validation uses the Root CA imported in Azure Portal
-- No certificate is accepted if neither method is configured
+PowerShell HTTP-triggered Azure Function. All authentication and secret retrieval logic lives here.
 
----
+**Trigger**: HTTP GET or POST, `authLevel` is `anonymous` (App Service enforces client certs at the platform level before the function is invoked).
 
-## Diagram
+**Key data flow inside the function:**
 
-See `docs/architecture-diagram.drawio` for a visual overview.
+1. Read configuration from environment variables (`ALLOWED_CLIENT_CERTS`, `CERT_ROOT_THUMBPRINT`, `WORKLOAD`, …).
+2. Extract the client certificate from the `X-ARR-ClientCert` header (Base64-encoded DER, set by App Service after TLS termination).
+3. Parse it into an `X509Certificate2` object.
+4. Check the certificate's `NotBefore` / `NotAfter` validity window.
+5. Run one or both validation steps (see "Certificate validation" below).
+6. On success, retrieve the secret from the configured backend and return it.
+
+A `$diagnostics` ordered hashtable is built throughout execution and included in every response body. This makes failures self-explanatory without requiring log access.
+
+### `client/requestSecret.ps1` — client script
+
+PowerShell script that runs on the endpoint. Responsible for:
+
+1. **Locating the client certificate** — three modes, evaluated in priority order:
+   - **PFX file** (`-CertificatePath`): loads the cert directly from a `.pfx` file. Suitable for automation or service accounts.
+   - **By thumbprint** (`-Thumbprint`): looks up `Cert:\LocalMachine\My\<thumb>` then `Cert:\CurrentUser\My\<thumb>`.
+   - **Auto-discovery** (no `-Thumbprint`, no `-CertificatePath`): enumerates `LocalMachine\My` and `CurrentUser\My`, filters by CN/SAN matching the machine hostname (`COMPUTERNAME` env var and DNS FQDN), requires `HasPrivateKey = true` and Client Authentication EKU (`1.3.6.1.5.5.7.3.2`). Picks the most recently expiring matching certificate.
+
+2. **Building the request URL** — appends `SecretName` as a query parameter to `FunctionUrl`.
+
+3. **Calling the function** — `Invoke-RestMethod -Uri $uri -Method Get -Certificate $cert`. PowerShell/WinHTTP sends the certificate in the TLS ClientCertificate extension of the handshake.
+
+4. **Printing the result** — reads `$response.SecretName`, `$response.SecretValue`, `$response.CertThumb`, `$response.Workload` from the JSON response body.
+
+## Certificate validation pipeline
+
+At least one of the two methods below must be configured. Both can be active simultaneously, in which case the certificate must pass **both** checks.
+
+### Step 1 — Extract and parse
+
+App Service decodes the client certificate from the TLS handshake and writes it as a Base64 string into the `X-ARR-ClientCert` HTTP header. The function reads this header case-insensitively, base64-decodes it, and constructs an `X509Certificate2`.
+
+If the header is absent, the function returns **HTTP 401**. This can happen if:
+- `clientCertEnabled` is not set on the Function App, or
+- the client did not present a certificate.
+
+### Step 2 — Validity window
+
+```powershell
+if ($clientCert.NotBefore -gt (Get-Date) -or $clientCert.NotAfter -lt (Get-Date))
+```
+
+Returns **HTTP 401** if the certificate is outside its validity window.
+
+### Step 3 — Root CA chain validation (`CERT_ROOT_THUMBPRINT`)
+
+When `CERT_ROOT_THUMBPRINT` is set, the function:
+
+1. Searches for the root CA certificate across four stores in order:
+   - `Cert:\CurrentUser\My`
+   - `Cert:\CurrentUser\Root`
+   - `Cert:\LocalMachine\My`
+   - `Cert:\LocalMachine\Root`
+
+   The cert must have been uploaded to the Function App (Portal → Certificates → Public key certificates) and `WEBSITE_LOAD_CERTIFICATES=*` must be set so the runtime loads it into the process stores.
+
+2. Builds an `X509Chain` with:
+   - `RevocationMode = NoCheck` (CRL checks are skipped for performance; enable `Online`/`Offline` if your PKI publishes CRLs reachable from Azure)
+   - `TrustMode = CustomRootTrust` — the uploaded CA cert is the sole trusted anchor; the system's Windows trust store is not consulted
+
+3. Calls `$chain.Build($clientCert)`. Returns **HTTP 401** if the chain cannot be built to the configured root.
+
+This is the recommended mode for device fleets: any device certificate issued by the corporate CA is accepted without per-device configuration.
+
+### Step 4 — Thumbprint allowlist (`ALLOWED_CLIENT_CERTS`)
+
+When `ALLOWED_CLIENT_CERTS` is set, the function checks whether the certificate's thumbprint (uppercase) is in the semicolon-separated list.
+
+Returns **HTTP 401** if the thumbprint is not found.
+
+This step is **additive**: if both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CERTS` are set, the certificate must pass the chain check first, and then the thumbprint check.
+
+### Validation modes summary
+
+| `CERT_ROOT_THUMBPRINT` | `ALLOWED_CLIENT_CERTS` | Behaviour |
+|---|---|---|
+| Set | Not set | Accept any cert that chains to the Root CA |
+| Not set | Set | Accept only certs whose thumbprint is in the list |
+| Set | Set | Cert must chain to Root CA **and** be in the list |
+| Not set | Not set | HTTP 500 — misconfiguration |
+
+## Secret retrieval workloads
+
+Select the backend via the `WORKLOAD` app setting (default: `APPSETTINGS`).
+
+### `APPSETTINGS` (default)
+
+```powershell
+$secretValue = [Environment]::GetEnvironmentVariable($secretName)
+```
+
+The secret is stored as a Function App application setting whose name equals `SecretName`. Simple and requires no additional Azure services. Manage secrets by updating app settings.
+
+### `KEYVAULT`
+
+Uses the Function App's managed identity to call the Key Vault REST API:
+
+```
+GET https://<vault>.vault.azure.net/secrets/<SecretName>?api-version=7.3
+```
+
+The identity token is obtained from the Azure Instance Metadata Service (IMDS). The Function App's managed identity must have the `get` permission on secrets in the vault.
+
+Required settings: `KEYVAULT_NAME` (or `KEYVAULT_URI`).
+
+### `TABLE`
+
+Fetches a row from Azure Table Storage using a SAS token:
+
+```
+GET <TABLE_ENDPOINT>(PartitionKey='secret',RowKey='<SecretName>')<TABLE_SAS_TOKEN>
+```
+
+The table row is expected to have a `Value` column containing the secret.
+
+Required settings: `TABLE_ENDPOINT`, `TABLE_SAS_TOKEN`.
+
+## Response format
+
+All responses are JSON and include a `Message` and a `Diagnostics` object. Success responses (HTTP 200) additionally include the secret fields at the top level:
+
+```jsonc
+// HTTP 200 — success
+{
+  "Message": "Success",
+  "SecretName": "MyStorageAccountKey",
+  "SecretValue": "<the-secret>",
+  "CertThumb": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+  "Workload": "APPSETTINGS",
+  "Diagnostics": {
+    "Timestamp": "2026-03-09T10:00:00.000Z",
+    "Phase": "success",
+    "ValidationMethod": "Chain validation",
+    "CertThumbprint": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+    "ChainValidationStatus": "Validated",
+    ...
+  }
+}
+
+// HTTP 401 — chain validation failed
+{
+  "Message": "Certificate chain validation failed: PartialChain: ...",
+  "Diagnostics": {
+    "Phase": "validation",
+    "ValidationMethod": "Chain validation",
+    "ChainValidationStatus": "PartialChain: ...",
+    ...
+  }
+}
+```
+
+## HTTP status codes
+
+| Code | Meaning |
+|---|---|
+| 200 | Certificate valid, secret found and returned |
+| 400 | `SecretName` query parameter missing |
+| 401 | Certificate missing, expired, chain invalid, or not in allowlist |
+| 404 | Certificate valid but no secret found for the given name in the configured backend |
+| 500 | No validation method configured, or backend retrieval threw an unexpected exception |
+
+## Security model
+
+- **Platform-level enforcement**: App Service requires a client certificate at the TLS layer (`clientCertEnabled=true`, `WEBSITE_CLIENT_CERT_MODE=Required`) before the function code runs. Requests without a certificate are rejected by the platform, never reaching the function.
+- **Function-level validation**: the function performs additional checks (validity window, chain, allowlist) so that even if the platform setting were misconfigured, the function would not return a secret.
+- **Custom trust anchor**: chain validation uses `X509ChainTrustMode::CustomRootTrust`. The system Windows certificate store is not used as a trust source. Only the explicitly uploaded Root CA is trusted.
+- **No secret in logs**: the `$diagnostics` block never includes the secret value. Only `SecretName` appears in diagnostics.
+- **HTTPS only**: `https_only=true` prevents plaintext connections.
