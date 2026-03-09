@@ -1,13 +1,24 @@
 # -------- Enable Client Certificates --------
-# Require client certificates for HTTPS connections
 az functionapp update --set clientCertEnabled=true --name "func-lnc-lab-certificatesecretproxy-test-01" --resource-group "rg-lnc-lab-CertificateSecretProxy-test-01"
+az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings WEBSITE_CLIENT_CERT_MODE=Required
 
-# Set client certificate mode to Required (blocks requests without valid client cert)
-az functionapp config appsettings set  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01  --settings WEBSITE_CLIENT_CERT_MODE=Required
-
-# -------- Enforce HTTPS Only --------
-# Redirect all HTTP traffic to HTTPS (client certificates only work over HTTPS)
+# -------- Enforce HTTPS --------
 az functionapp update --set https_only=true --name "func-lnc-lab-certificatesecretproxy-test-01" --resource-group "rg-lnc-lab-CertificateSecretProxy-test-01"
 
-# -------- Restart Function App --------
-az functionapp restart  -g rg-lnc-lab-CertificateSecretProxy-test-01  -n func-lnc-lab-certificatesecretproxy-test-01
+# -------- Method 1: Thumbprint Whitelist --------
+# Set this if you want to allow specific client certificates by thumbprint (semicolon-separated)
+# Example:
+# az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings ALLOWED_CLIENT_CERTS="22E4D9050A50F3AC0A6588C641BD4BE869F788CD;THUMB2;THUMB3"
+
+# -------- Method 2: Root CA Chain Validation --------
+# Set this if you want to validate client certificates against a Root CA imported in Azure (see portal)
+# The Root CA must be imported via Azure Portal: Function App → Certificates → Public key certificates
+# Then set the thumbprint here:
+# az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>"
+
+# -------- Workload Configuration --------
+# Set the workload type: APPSETTINGS (default), KEYVAULT, or TABLE
+# az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings WORKLOAD="APPSETTINGS"
+
+# -------- Restart --------
+az functionapp restart -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01
