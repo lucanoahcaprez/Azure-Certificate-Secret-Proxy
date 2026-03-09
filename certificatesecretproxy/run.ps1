@@ -12,7 +12,8 @@ $issuerValidationRequired = $issuerThumbs.Count -gt 0
 # Certificate validation configuration
 $revocationMode = $env:CERT_REVOCATION_MODE
 if (-not $revocationMode) { $revocationMode = 'NoCheck' }
-$requireEku = if ([string]::IsNullOrWhiteSpace($env:CERT_REQUIRE_EKU)) { $true } else { [bool]::Parse($env:CERT_REQUIRE_EKU) }
+# Default to false for backward compatibility; set CERT_REQUIRE_EKU=true to enforce Client Authentication EKU
+$requireEku = if ([string]::IsNullOrWhiteSpace($env:CERT_REQUIRE_EKU)) { $false } else { [bool]::Parse($env:CERT_REQUIRE_EKU) }
 
 # Collect lightweight execution diagnostics so callers can see how the request was interpreted
 $diagnostics = [ordered]@{
@@ -91,16 +92,23 @@ if (-not $secretName) {
 
 # -------- Client certificate extraction and validation --------
 
-function Get-ClientCertificate {
-    param(
-        [System.Net.Http.HttpRequestMessage]$req
-    )
+# -------- Client certificate extraction and validation --------
 
-    $raw = $req.Headers['X-ARR-ClientCert']
-    if (-not $raw -and $req.Content -and $req.Content.Headers) {
-        $raw = $req.Content.Headers['X-ARR-ClientCert']
+function Get-ClientCertificate {
+    # Find the cert header by iterating through all request headers (case-insensitive)
+    $raw = $null
+    
+    # Access headers from the parent $Request object
+    if ($Request.Headers) {
+        foreach ($key in $Request.Headers.Keys) {
+            if ($key -ieq 'x-arr-clientcert') {
+                $raw = $Request.Headers[$key]
+                $diagnostics.CertHeaderName = $key
+                break
+            }
+        }
     }
-    $diagnostics.CertHeaderName    = 'X-ARR-ClientCert'
+    
     $diagnostics.CertHeaderPresent = [bool]$raw
     if (-not $raw) { return $null }
 
@@ -117,8 +125,8 @@ function Get-ClientCertificate {
     }
 }
 
-# Validate certificate validity period and Enhanced Key Usage
-function Validate-CertificateProperties([X509Certificate2]$cert, [hashtable]$diags) {
+# Validate certificate validity period and EKU
+function Validate-CertificateProperties([X509Certificate2]$cert) {
     $now = Get-Date
     
     # Check NotBefore (validity start)
@@ -162,14 +170,14 @@ function Validate-CertificateProperties([X509Certificate2]$cert, [hashtable]$dia
     @{ Valid = $true; Reason = 'OK' }
 }
 
-$clientCert = Get-ClientCertificate -req $Request
+$clientCert = Get-ClientCertificate
 if (-not $clientCert) {
     Send-Response 401 'Client certificate missing or unreadable (check forwarding header and format)' @{ Phase = 'auth' }
     return
 }
 
 # Validate certificate validity period and EKU
-$certValidation = Validate-CertificateProperties -cert $clientCert -diags $diagnostics
+$certValidation = Validate-CertificateProperties -cert $clientCert
 if (-not $certValidation.Valid) {
     Send-Response 401 "Certificate validation failed: $($certValidation.Reason)" @{ Phase = 'auth'; ValidationReason = $certValidation.Reason }
     return
