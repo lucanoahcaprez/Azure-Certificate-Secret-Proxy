@@ -1,0 +1,22 @@
+image: ubuntu:24.04
+
+stages:
+  - mirror-github
+
+mirror_github:
+  variables:
+    GIT_DEPTH: "0"
+  stage: mirror-github
+  image:
+    name: alpine/git:latest
+    entrypoint: [""]
+  before_script: []
+  script:
+    - git remote remove github || true
+    - git remote add github https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_USERNAME/Azure-Certificate-Secret-Proxy.git
+    - git fetch --prune --tags origin
+    - git push --force github HEAD:main
+    - git push --tags github
+  only:
+    - main
+    - master
