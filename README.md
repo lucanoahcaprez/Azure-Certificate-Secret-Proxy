@@ -44,13 +44,12 @@ Diagram: [docs/architecture-diagram.drawio](/docs/architecture-diagram.drawio)
 5. Ensure your ingress (Front Door/APIM/App Gateway) is configured to require client certificates and forward them (`X-ARR-ClientCert`) to the Function App.
 
 ## Client usage (PowerShell)
-Prereqs: client certificate installed in `Cert:\CurrentUser\My` on the calling machine.
+Prereqs: client certificate installed in `Cert:\CurrentUser\My` (or `LocalMachine\My`) on the calling machine. The script will automatically pick a certificate whose CN or SAN matches the device hostname (or FQDN). Override by passing `-Thumbprint`.
 
 ```powershell
 .\client\requestSecret.ps1 `
   -FunctionUrl "https://<func>.azurewebsites.net/api/azfunctioncertificatesecretproxy" `
   -SecretName "MyStorageAccountKey" `
-  -Thumbprint "<THUMBPRINT>" `
   -SkipCertCheck   # optional for non-production testing
 ```
 

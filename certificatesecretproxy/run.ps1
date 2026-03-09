@@ -19,6 +19,7 @@ $diagnostics = [ordered]@{
     CertHeaderPresent  = $false
     CertThumb          = $null
     AllowedConfigured  = $allowed.Count
+    WhitelistEnabled   = $false
     IssuersConfigured  = $issuerThumbs.Count
     ChainStatus        = $null
     Phase              = 'init'
@@ -59,6 +60,7 @@ $workload = $workload.ToUpper()
 $diagnostics.SecretName = $secretName
 $diagnostics.Workload   = $workload
 $diagnostics.Phase      = 'parsed-params'
+$diagnostics.WhitelistEnabled = ($allowed.Count -gt 0)
 
 if (-not $secretName) {
     Send-Response 400 'SecretName missing (query or JSON body)' @{ Phase = 'parsed-params' }
@@ -84,7 +86,7 @@ catch {
 $thumbprint = $clientCert.Thumbprint.ToUpper()
 $diagnostics.CertThumb = $thumbprint
 
-if ($allowed -and ($thumbprint -notin $allowed)) {
+if ($allowed.Count -gt 0 -and ($thumbprint -notin $allowed)) {
     Send-Response 401 "Unauthorized certificate: $thumbprint" @{ Phase = 'auth' }
     return
 }
