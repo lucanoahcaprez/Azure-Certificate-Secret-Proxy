@@ -8,6 +8,8 @@ Managed Windows endpoints often need to retrieve secrets at runtime (e.g. a stor
 
 ## How it works (high level)
 
+![Architecture overview](docs/img/architecutre-overview.png)
+
 1. The client runs `requestSecret.ps1`, which locates the machine certificate in the Windows certificate store and calls the Azure Function over HTTPS with the cert attached.
 2. Azure App Service is configured to **require** a client certificate. It terminates TLS and forwards the certificate in the `X-ARR-ClientCert` request header.
 3. The Azure Function (`run.ps1`) decodes and validates the certificate:
