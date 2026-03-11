@@ -8,7 +8,7 @@ Managed Windows endpoints often need to retrieve secrets at runtime (e.g. a stor
 
 ## How it works (high level)
 
-![Architecture overview](docs/img/architecutre-overview.png)
+![Architecture overview](docs/img/architecture-diagram.png)
 
 1. The client runs `requestSecret.ps1`, which locates the machine certificate in the Windows certificate store and calls the Azure Function over HTTPS with the cert attached.
 2. Azure App Service is configured to **require** a client certificate. It terminates TLS and forwards the certificate in the `X-ARR-ClientCert` request header.
@@ -21,30 +21,77 @@ Managed Windows endpoints often need to retrieve secrets at runtime (e.g. a stor
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a detailed technical walkthrough.
 
+## Deploy to Azure
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Flucanoahcaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Flucanoahcaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2FcreateUiDefinition.json)
+
+The button opens a wizard in the Azure Portal that deploys all required infrastructure:
+
+| Resource | Purpose |
+|---|---|
+| **Function App** (Windows, PowerShell 7.4) | Runs `run.ps1`; mTLS and HTTPS enforced at the platform level |
+| **App Service Plan** | Hosts the Function App (Consumption Y1 by default) |
+| **Storage Account** | Required by the Azure Functions runtime for internal state and scaling |
+| **Application Insights** + **Log Analytics Workspace** | Request tracing, failure diagnosis, and live metrics |
+
+**What the ARM template configures automatically:**
+
+- Client certificate enforcement (`clientCertEnabled=true`, `clientCertMode=Required`)
+- HTTPS-only, TLS 1.2 minimum, FTPS disabled
+- System-assigned managed identity (required for the Key Vault and Table Storage workloads)
+- All environment variables: `WORKLOAD`, `CERT_ROOT_THUMBPRINT`, `ALLOWED_CLIENT_CERTS`, `WEBSITE_LOAD_CERTIFICATES`, `KEYVAULT_NAME`, `TABLE_ENDPOINT`
+
+**After the ARM deployment completes, deploy the function code:**
+
+```powershell
+func azure functionapp publish <your-function-app-name>
+```
+
+> **Certificate validation is not active until at least one of `CERT_ROOT_THUMBPRINT` or `ALLOWED_CLIENT_CERTS` is set.** Both are optional parameters in the wizard — you can provide them during deployment or set them later via the Azure Portal or [deployment/configs.azcli](deployment/configs.azcli).
+
+> **Key Vault workload:** after deployment, grant the managed identity the `Key Vault Secrets User` role on the vault. The managed identity principal ID is shown in the deployment outputs.
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for the full manual deployment guide, Root CA certificate upload instructions, and Key Vault RBAC setup.
+
 ## Repository structure
 
 ```
 certificatesecretproxy/
-  function.json          # Azure Function trigger (HTTP GET+POST, anonymous authLevel)
-  run.ps1                # Function logic — cert validation + secret retrieval
+  function.json                    # Azure Function trigger (HTTP GET+POST, anonymous authLevel)
+  run.ps1                          # Function logic — cert validation + secret retrieval
 client/
-  requestSecret.ps1      # PowerShell client script for Windows endpoints
+  requestSecret.ps1                # PowerShell client script for Windows endpoints
 deployment/
-  configs.azcli          # az CLI commands to configure the Function App
+  azuredeploy.json                 # ARM template — deploys all Azure infrastructure
+  createUiDefinition.json          # Portal wizard UI for the Deploy to Azure button
+  azuredeploy.parameters.json      # Sample parameter file for az CLI deployments
+  configs.azcli                    # az CLI commands for post-deployment configuration
 docs/
-  ARCHITECTURE.md        # Technical deep-dive: full request flow, validation logic, response format
-  DEPLOY.md              # Step-by-step deployment and configuration guide
-  TEST.md                # Test matrix and test commands
+  ARCHITECTURE.md                  # Technical deep-dive: full request flow, validation logic
+  DEPLOY.md                        # Step-by-step deployment and configuration guide
+  TEST.md                          # Test matrix and test commands
   architecture-diagram.drawio
 ```
 
 ## Quick start
 
 ### Prerequisites
-- Azure Function App (PowerShell worker runtime, Windows hosting plan)
+- Azure Function App (PowerShell worker runtime, Windows hosting plan) — or click **Deploy to Azure** above to provision everything automatically
 - Machine certificates enrolled in `Cert:\LocalMachine\My` on each endpoint, issued by your corporate CA
 
-### 1 — Deploy the function code
+### 1 — Deploy infrastructure (ARM template)
+
+Use the [Deploy to Azure](#deploy-to-azure) button above, or deploy from the CLI:
+
+```bash
+az deployment group create \
+  --resource-group <resource-group> \
+  --template-file deployment/azuredeploy.json \
+  --parameters deployment/azuredeploy.parameters.json \
+               functionAppName="<your-function-app-name>"
+```
+
+### 2 — Deploy the function code
 
 ```powershell
 func azure functionapp publish <your-function-app-name>

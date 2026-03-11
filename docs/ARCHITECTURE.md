@@ -4,7 +4,7 @@
 
 The Azure Certificate Secret Proxy is an Azure Function App that acts as a secure secret-delivery endpoint for managed Windows devices. It uses mutual TLS (mTLS) to authenticate callers: every request must carry a valid client certificate, and the function validates that certificate before returning any secret.
 
-![Architecture overview](img/architecutre-overview.png)
+![Architecture overview](img/architecture-diagram)
 
 | Component | Role |
 |---|---|

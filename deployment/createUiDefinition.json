@@ -1,0 +1,173 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {
+        "name": "functionAppName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Function App Name",
+        "toolTip": "Globally unique name for the Azure Function App. The endpoint will be at https://<name>.azurewebsites.net/api/certificatesecretproxy. Allowed characters: letters, numbers, hyphens.",
+        "placeholder": "my-certificatesecretproxy",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-zA-Z0-9][a-zA-Z0-9-]{1,58}[a-zA-Z0-9]$",
+          "validationMessage": "2–60 characters. Must start and end with a letter or number. Only letters, numbers, and hyphens allowed."
+        }
+      },
+      {
+        "name": "appServicePlanSku",
+        "type": "Microsoft.Common.DropDown",
+        "label": "Hosting Plan",
+        "defaultValue": "Y1 — Consumption (serverless, pay-per-call)",
+        "toolTip": "Y1 is the cheapest option — you pay only for invocations. Basic (B1–B3) plans run 24/7 on dedicated compute. Elastic Premium (EP1–EP3) adds pre-warmed instances and VNet integration.",
+        "constraints": {
+          "required": true,
+          "allowedValues": [
+            { "label": "Y1 — Consumption (serverless, pay-per-call)", "value": "Y1" },
+            { "label": "B1 — Basic (1 core, 1.75 GB RAM, always-on)", "value": "B1" },
+            { "label": "B2 — Basic (2 cores, 3.5 GB RAM, always-on)", "value": "B2" },
+            { "label": "B3 — Basic (4 cores, 7 GB RAM, always-on)", "value": "B3" },
+            { "label": "EP1 — Elastic Premium (1 core, 3.5 GB RAM, pre-warmed)", "value": "EP1" },
+            { "label": "EP2 — Elastic Premium (2 cores, 7 GB RAM, pre-warmed)", "value": "EP2" },
+            { "label": "EP3 — Elastic Premium (4 cores, 14 GB RAM, pre-warmed)", "value": "EP3" }
+          ]
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "certStep",
+        "label": "Certificate Validation",
+        "subLabel": {
+          "preValidation": "Configure how client certificates are validated",
+          "postValidation": "Certificate validation configured"
+        },
+        "bladeTitle": "Certificate Validation",
+        "elements": [
+          {
+            "name": "validationInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "At least one of the two validation methods below must be configured. Both can be active simultaneously — the certificate must then satisfy both checks. You can also leave both empty now and configure them after deployment."
+            }
+          },
+          {
+            "name": "certRootThumbprint",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Root CA Certificate Thumbprint",
+            "toolTip": "Thumbprint of the Root CA certificate you will upload in the Azure Portal (Function App → Certificates → Public key certificates). When set, every client certificate must chain up to this CA. Recommended for managed device fleets — any device certificate issued by your corporate CA is automatically trusted.",
+            "placeholder": "Leave empty to skip chain validation",
+            "constraints": {
+              "required": false,
+              "regex": "^([0-9A-Fa-f]{40})?$",
+              "validationMessage": "Must be a 40-character hexadecimal thumbprint, or leave empty."
+            }
+          },
+          {
+            "name": "allowedClientCerts",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Allowed Client Certificate Thumbprints",
+            "toolTip": "Semicolon-separated list of client certificate thumbprints that are explicitly allowed (uppercase hex, no spaces). Example: 22E4D9050A50F3AC0A6588C641BD4BE869F788CD;AABBCC... Suitable for a small number of known devices.",
+            "placeholder": "THUMB1;THUMB2 (leave empty to skip allowlist)",
+            "constraints": {
+              "required": false
+            }
+          },
+          {
+            "name": "certPostInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[not(empty(steps('certStep').certRootThumbprint))]",
+            "options": {
+              "icon": "Warning",
+              "text": "After deployment you must upload your Root CA certificate in the Azure Portal (Function App → Certificates → Public key certificates) and set WEBSITE_LOAD_CERTIFICATES=* — the ARM template sets this automatically when certRootThumbprint is provided."
+            }
+          }
+        ]
+      },
+      {
+        "name": "backendStep",
+        "label": "Secret Backend",
+        "subLabel": {
+          "preValidation": "Choose where secrets are stored",
+          "postValidation": "Secret backend configured"
+        },
+        "bladeTitle": "Secret Backend",
+        "elements": [
+          {
+            "name": "workload",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Secret Backend",
+            "defaultValue": "App Settings (default)",
+            "toolTip": "Controls where the function looks for secrets. App Settings: each secret is a Function App setting whose name matches the SecretName the client sends. Key Vault: secrets are fetched from Azure Key Vault using the system-assigned managed identity. Table Storage: secrets are rows in an Azure Table.",
+            "constraints": {
+              "required": true,
+              "allowedValues": [
+                { "label": "App Settings (default)", "value": "APPSETTINGS" },
+                { "label": "Azure Key Vault (managed identity)", "value": "KEYVAULT" },
+                { "label": "Azure Table Storage", "value": "TABLE" }
+              ]
+            }
+          },
+          {
+            "name": "appsettingsInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[equals(steps('backendStep').workload, 'APPSETTINGS')]",
+            "options": {
+              "icon": "Info",
+              "text": "After deployment, add each secret as a Function App application setting. The setting name is exactly what device clients pass as 'SecretName'."
+            }
+          },
+          {
+            "name": "keyVaultName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Key Vault Name",
+            "toolTip": "Name of the existing Azure Key Vault that contains the secrets. After deployment, grant the Function App system-assigned managed identity the 'Key Vault Secrets User' role on the vault. The managed identity principal ID is shown in the deployment outputs.",
+            "placeholder": "my-keyvault",
+            "visible": "[equals(steps('backendStep').workload, 'KEYVAULT')]",
+            "constraints": {
+              "required": "[equals(steps('backendStep').workload, 'KEYVAULT')]",
+              "regex": "^[a-zA-Z][a-zA-Z0-9-]{1,22}[a-zA-Z0-9]$",
+              "validationMessage": "3–24 characters. Must start with a letter, end with a letter or number, and contain only letters, numbers, and hyphens."
+            }
+          },
+          {
+            "name": "keyvaultInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[equals(steps('backendStep').workload, 'KEYVAULT')]",
+            "options": {
+              "icon": "Warning",
+              "text": "After deployment, run: az role assignment create --assignee <principalId> --role 'Key Vault Secrets User' --scope <keyVaultResourceId>. The principal ID is available in the deployment outputs."
+            }
+          },
+          {
+            "name": "tableEndpoint",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Table Storage Endpoint",
+            "toolTip": "Full Azure Table Storage URL including the table name. Format: https://<account>.table.core.windows.net/<TableName>. Table rows must have PartitionKey='secret', RowKey=<SecretName>. The function uses the managed identity to authenticate.",
+            "placeholder": "https://myaccount.table.core.windows.net/Secrets",
+            "visible": "[equals(steps('backendStep').workload, 'TABLE')]",
+            "constraints": {
+              "required": "[equals(steps('backendStep').workload, 'TABLE')]",
+              "regex": "^https://[a-z0-9]+\\.table\\.core\\.windows\\.net/.+$",
+              "validationMessage": "Must be a valid Azure Table Storage URL including the table name."
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "functionAppName": "[basics('functionAppName')]",
+      "location": "[location()]",
+      "appServicePlanSku": "[basics('appServicePlanSku')]",
+      "workload": "[steps('backendStep').workload]",
+      "certRootThumbprint": "[steps('certStep').certRootThumbprint]",
+      "allowedClientCerts": "[steps('certStep').allowedClientCerts]",
+      "keyVaultName": "[steps('backendStep').keyVaultName]",
+      "tableEndpoint": "[steps('backendStep').tableEndpoint]"
+    }
+  }
+}

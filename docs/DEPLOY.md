@@ -2,6 +2,38 @@
 
 This guide walks through deploying the Azure Certificate Secret Proxy from zero to a working installation.
 
+## Option A — Deploy to Azure (recommended)
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FLucaCaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2FLucaCaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2FcreateUiDefinition.json)
+
+Click the button to open the deployment wizard in the Azure Portal. The ARM template (`deployment/azuredeploy.json`) provisions all required Azure resources and configures every mandatory setting. After the deployment completes, run:
+
+```powershell
+func azure functionapp publish <your-function-app-name>
+```
+
+to publish the function code, then continue from [Step 4 — Configure certificate validation](#step-4--configure-certificate-validation) below.
+
+---
+
+## Option B — Manual ARM deployment (CLI)
+
+```bash
+az deployment group create \
+  --resource-group <resource-group> \
+  --template-file deployment/azuredeploy.json \
+  --parameters deployment/azuredeploy.parameters.json \
+               functionAppName="<your-function-app-name>"
+```
+
+Edit `deployment/azuredeploy.parameters.json` first to set your desired values. After the deployment completes, publish the function code and continue from [Step 4](#step-4--configure-certificate-validation).
+
+---
+
+## Option C — Fully manual setup
+
+Follow the steps below to provision and configure everything using the Azure CLI.
+
 ## Prerequisites
 
 - **Azure CLI** installed and logged in (`az login`)
