@@ -1,0 +1,51 @@
+name: Deploy Function App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required to create releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Build ZIP ─────────────────────────────────────────────────────────────
+      # Includes only the files the Functions runtime needs:
+      #   host.json                              (runtime configuration)
+      #   certificatesecretproxy/function.json   (trigger/binding definition)
+      #   certificatesecretproxy/run.ps1         (function code)
+      - name: Create deployment ZIP
+        run: |
+          zip -r function.zip \
+            host.json \
+            certificatesecretproxy/
+
+      # ── Upload as workflow artifact (7-day convenience copy) ──────────────────
+      - name: Upload ZIP as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-app
+          path: function.zip
+          retention-days: 7
+
+      # ── Create a GitHub Release (permanent copy) ──────────────────────────────
+      # The release asset URL can be passed to the ARM template as packageUrl:
+      #   https://github.com/<org>/<repo>/releases/download/<tag>/function.zip
+      # The Function App will then run directly from that URL via
+      # WEBSITE_RUN_FROM_PACKAGE (set in azuredeploy.json).
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="deploy-$(date -u +%Y%m%d%H%M%S)"
+          gh release create "$TAG" function.zip \
+            --title "Function App $TAG" \
+            --notes "Built from commit ${{ github.sha }} on branch ${{ github.ref_name }}"
