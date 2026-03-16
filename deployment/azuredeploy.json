@@ -70,7 +70,14 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "(Required when workload=TABLE) Azure Table Storage URL including the table name. Format: https://<account>.table.core.windows.net/<TableName>. Table rows must have PartitionKey='secret', RowKey=<SecretName>."
+        "description": "(Required when workload=TABLE) Azure Table Storage URL including the table name. Format: https://<account>.table.core.windows.net/<TableName>. Table rows must have PartitionKey='secret', RowKey=<SecretName>. After deployment, grant the Function App system identity the 'Storage Table Data Reader' role on the storage account."
+      }
+    },
+    "packageUrl": {
+      "type": "string",
+      "defaultValue": "https://github.com/lucanoahcaprez/Azure-Certificate-Secret-Proxy/releases/latest/download/function.zip",
+      "metadata": {
+        "description": "URL of the function.zip GitHub Release asset to run from. Defaults to the latest published release. Override with a specific release URL (https://github.com/lucanoahcaprez/Azure-Certificate-Secret-Proxy/releases/download/<tag>/function.zip) to pin to a version. Set to empty to skip package deployment (code must then be deployed separately)."
       }
     }
   },
@@ -83,7 +90,6 @@
     "isElasticPremium": "[or(equals(parameters('appServicePlanSku'), 'EP1'), or(equals(parameters('appServicePlanSku'), 'EP2'), equals(parameters('appServicePlanSku'), 'EP3')))]",
     "planTier": "[if(variables('isConsumption'), 'Dynamic', if(variables('isElasticPremium'), 'ElasticPremium', 'Basic'))]",
     "planFamily": "[if(variables('isConsumption'), 'Y', if(variables('isElasticPremium'), 'EP', 'B'))]",
-    "storageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-09-01').keys[0].value)]",
     "websiteLoadCerts": "[if(not(empty(parameters('certRootThumbprint'))), '*', '')]"
   },
   "resources": [
@@ -179,11 +185,11 @@
           "appSettings": [
             {
               "name": "AzureWebJobsStorage",
-              "value": "[variables('storageConnectionString')]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[variables('storageConnectionString')]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-09-01').keys[0].value)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -236,6 +242,10 @@
             {
               "name": "POWERSHELL_WORKER_INVOCATION_TIMEOUT_SECS",
               "value": "120"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "[if(empty(parameters('packageUrl')), '1', parameters('packageUrl'))]"
             }
           ]
         }
