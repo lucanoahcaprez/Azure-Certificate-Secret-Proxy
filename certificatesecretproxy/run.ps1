@@ -242,11 +242,35 @@ try {
         }
         'TABLE' {
             $tableEndpoint = $env:TABLE_ENDPOINT
-            $sasToken = $env:TABLE_SAS_TOKEN
-            if (-not $tableEndpoint -or -not $sasToken) { throw "TABLE_ENDPOINT and TABLE_SAS_TOKEN required" }
-            $uri = "$tableEndpoint(PartitionKey='secret',RowKey='$secretName')$sasToken"
-            $resp = Invoke-RestMethod -Method Get -Uri $uri -Headers @{ Accept = 'application/json;odata=nometadata' } -ErrorAction Stop
-            $secretValue = $resp.Value
+            if (-not $tableEndpoint) { throw "TABLE_ENDPOINT required (e.g. https://{account}.table.core.windows.net/{tableName})" }
+
+            # Acquire a token via the App Service managed identity endpoint.
+            if (-not $env:IDENTITY_ENDPOINT -or -not $env:IDENTITY_HEADER) {
+                throw "Managed identity is not available (IDENTITY_ENDPOINT/IDENTITY_HEADER missing). Enable a system-assigned managed identity on the Function App."
+            }
+            $tokenUri = "$($env:IDENTITY_ENDPOINT)?resource=https://storage.azure.com/&api-version=2019-08-01"
+            $token = (Invoke-RestMethod -Method Get -Uri $tokenUri `
+                -Headers @{ 'X-IDENTITY-HEADER' = $env:IDENTITY_HEADER } `
+                -ErrorAction Stop).access_token
+
+            $encodedRowKey = [Uri]::EscapeDataString($secretName)
+            $uri = "$tableEndpoint(PartitionKey='secret',RowKey='$encodedRowKey')"
+            $resp = Invoke-RestMethod -Method Get -Uri $uri `
+                -Headers @{
+                    Authorization  = "Bearer $token"
+                    Accept         = 'application/json;odata=nometadata'
+                    'x-ms-version' = '2019-02-02'
+                } `
+                -ErrorAction Stop
+
+            # Collect all non-system properties from the row
+            $rowData = [ordered]@{}
+            foreach ($prop in $resp.PSObject.Properties) {
+                if ($prop.Name -notin @('PartitionKey', 'RowKey', 'Timestamp', 'odata.etag')) {
+                    $rowData[$prop.Name] = $prop.Value
+                }
+            }
+            $secretValue = if ($rowData.Count -gt 0) { [pscustomobject]$rowData } else { $null }
         }
         default {
             throw "Unknown workload: $workload"
@@ -271,6 +295,18 @@ try {
 catch {
     $diagnostics.Phase = 'secret-retrieval'
     $diagnostics.Message = $_.Exception.Message
-    Send-Response 500 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+
+    # If the upstream service (Key Vault, Table Storage) returned 404, surface that as a 404.
+    $upstreamStatus = $null
+    if ($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException]) {
+        $upstreamStatus = [int]$_.Exception.Response.StatusCode
+    }
+
+    if ($upstreamStatus -eq 404) {
+        $diagnostics.Message = "Secret not found: $secretName"
+        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+    } else {
+        Send-Response 500 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+    }
 }
 

@@ -4,22 +4,14 @@
 
 The Azure Certificate Secret Proxy is an Azure Function App that acts as a secure secret-delivery endpoint for managed Windows devices. It uses mutual TLS (mTLS) to authenticate callers: every request must carry a valid client certificate, and the function validates that certificate before returning any secret.
 
-```
- Windows Device                  Azure                        Secret Backend
- ─────────────                  ───────                        ──────────────
- requestSecret.ps1              App Service                    App Settings
-   │                               │                           Key Vault
-   │  HTTPS + client cert TLS ──►  │  X-ARR-ClientCert         Table Storage
-   │                               │  header forwarded
-   │                               ▼
-   │                           run.ps1 (Azure Function)
-   │                             1. Extract cert from header
-   │                             2. Check validity window
-   │                             3. Chain validation (optional)
-   │                             4. Thumbprint allowlist (optional)
-   │                             5. Retrieve secret
-   │  ◄── JSON response ──────────│
-```
+![Architecture overview](img/architecture-diagram)
+
+| Component | Role |
+|---|---|
+| **Windows Device** (`requestSecret.ps1`) | Locates the machine certificate and calls the Function over HTTPS with the cert attached |
+| **Azure App Service** | Terminates TLS, enforces client-cert requirement, forwards the cert in `X-ARR-ClientCert` |
+| **Azure Function** (`run.ps1`) | Decodes and validates the certificate, then retrieves the requested secret |
+| **Secret Backend** | App Settings, Key Vault, or Table Storage — whichever `WORKLOAD` selects |
 
 ## Components
 
@@ -165,13 +157,13 @@ All responses are JSON and include a `Message` and a `Diagnostics` object. Succe
   "Message": "Success",
   "SecretName": "MyStorageAccountKey",
   "SecretValue": "<the-secret>",
-  "CertThumb": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+  "CertThumb": "22E4D9050A50F3ACAA6583C641BD4BE869F788CD",
   "Workload": "APPSETTINGS",
   "Diagnostics": {
     "Timestamp": "2026-03-09T10:00:00.000Z",
     "Phase": "success",
     "ValidationMethod": "Chain validation",
-    "CertThumbprint": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+    "CertThumbprint": "22E4D9050A50F3ACAA6583C641BD4BE869F788CD",
     "ChainValidationStatus": "Validated",
     ...
   }
