@@ -4,7 +4,7 @@ This guide walks through deploying the Azure Certificate Secret Proxy from zero 
 
 ## Option A — Deploy to Azure (recommended)
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FLucaCaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2FLucaCaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Flucanoahcaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Flucanoahcaprez%2FAzure-Certificate-Secret-Proxy%2Fmain%2Fdeployment%2FcreateUiDefinition.json)
 
 Click the button to open the deployment wizard in the Azure Portal. The ARM template (`deployment/azuredeploy.json`) provisions all required Azure resources and configures every mandatory setting. After the deployment completes, run:
 
