@@ -278,9 +278,19 @@ try {
     }
     
     if (-not $secretValue) {
+        $notFoundHint = switch ($workload) {
+            'APPSETTINGS' { "No Function App application setting named '$secretName' was found. Add it under Configuration > Application settings in the Azure Portal, or via: az functionapp config appsettings set --settings $secretName=<value>. Names are case-sensitive on Linux and case-insensitive on Windows." }
+            'KEYVAULT'    {
+                $vaultDisplay = if ($env:KEYVAULT_URI) { $env:KEYVAULT_URI } elseif ($env:KEYVAULT_NAME) { "https://$($env:KEYVAULT_NAME).vault.azure.net" } else { '(unknown vault)' }
+                "No secret named '$secretName' was found in Key Vault '$vaultDisplay'. Verify: (1) the secret exists and is enabled, (2) the Function App managed identity has the 'Key Vault Secrets User' role on the vault, (3) secret names may only contain alphanumerics and hyphens."
+            }
+            'TABLE'       { "No row with PartitionKey='secret' and RowKey='$secretName' was found in table endpoint '$($env:TABLE_ENDPOINT)'. Verify: (1) the row exists with exactly PartitionKey='secret' and RowKey='$secretName', (2) the Function App managed identity has the 'Storage Table Data Reader' role on the storage account. See docs: https://github.com/LucaCaprez/Azure-Certificate-Secret-Proxy/blob/main/docs/DEPLOY.md#storage-table" }
+            default       { "Secret '$secretName' not found in workload '$workload'." }
+        }
         $diagnostics.Phase = 'secret-retrieval'
         $diagnostics.Message = "Secret not found: $secretName"
-        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+        $diagnostics.Hint = $notFoundHint
+        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval'; Hint = $notFoundHint }
         return
     }
 
@@ -303,8 +313,17 @@ catch {
     }
 
     if ($upstreamStatus -eq 404) {
+        $notFoundHint = switch ($workload) {
+            'KEYVAULT' {
+                $vaultDisplay = if ($env:KEYVAULT_URI) { $env:KEYVAULT_URI } elseif ($env:KEYVAULT_NAME) { "https://$($env:KEYVAULT_NAME).vault.azure.net" } else { '(unknown vault)' }
+                "No secret named '$secretName' was found in Key Vault '$vaultDisplay'. Verify: (1) the secret exists and is enabled, (2) the Function App managed identity has the 'Key Vault Secrets User' role on the vault, (3) secret names may only contain alphanumerics and hyphens."
+            }
+            'TABLE'    { "No row with PartitionKey='secret' and RowKey='$secretName' was found in table endpoint '$($env:TABLE_ENDPOINT)'. Verify: (1) the row exists with exactly PartitionKey='secret' and RowKey='$secretName', (2) the Function App managed identity has the 'Storage Table Data Reader' role on the storage account. See docs: https://github.com/LucaCaprez/Azure-Certificate-Secret-Proxy/blob/main/docs/DEPLOY.md#storage-table" }
+            default    { "Secret '$secretName' not found." }
+        }
         $diagnostics.Message = "Secret not found: $secretName"
-        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+        $diagnostics.Hint = $notFoundHint
+        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval'; Hint = $notFoundHint }
     } else {
         Send-Response 500 $diagnostics.Message @{ Phase = 'secret-retrieval' }
     }
