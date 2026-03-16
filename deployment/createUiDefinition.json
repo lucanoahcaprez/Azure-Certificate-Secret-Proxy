@@ -71,7 +71,7 @@
             "name": "allowedClientCerts",
             "type": "Microsoft.Common.TextBox",
             "label": "Allowed Client Certificate Thumbprints",
-            "toolTip": "Semicolon-separated list of client certificate thumbprints that are explicitly allowed (uppercase hex, no spaces). Example: 22E4D9050A50F3AC0A6588C641BD4BE869F788CD;AABBCC... Suitable for a small number of known devices.",
+            "toolTip": "Semicolon-separated list of client certificate thumbprints that are explicitly allowed (uppercase hex, no spaces). Example: 22E4D9050A50F3ACAA6583C641BD4BE869F788CD;AABBCC... Suitable for a small number of known devices.",
             "placeholder": "THUMB1;THUMB2 (leave empty to skip allowlist)",
             "constraints": {
               "required": false

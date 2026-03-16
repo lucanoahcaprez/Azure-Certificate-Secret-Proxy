@@ -157,13 +157,13 @@ All responses are JSON and include a `Message` and a `Diagnostics` object. Succe
   "Message": "Success",
   "SecretName": "MyStorageAccountKey",
   "SecretValue": "<the-secret>",
-  "CertThumb": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+  "CertThumb": "22E4D9050A50F3ACAA6583C641BD4BE869F788CD",
   "Workload": "APPSETTINGS",
   "Diagnostics": {
     "Timestamp": "2026-03-09T10:00:00.000Z",
     "Phase": "success",
     "ValidationMethod": "Chain validation",
-    "CertThumbprint": "22E4D9050A50F3AC0A6588C641BD4BE869F788CD",
+    "CertThumbprint": "22E4D9050A50F3ACAA6583C641BD4BE869F788CD",
     "ChainValidationStatus": "Validated",
     ...
   }

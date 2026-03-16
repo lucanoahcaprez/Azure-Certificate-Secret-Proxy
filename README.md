@@ -191,16 +191,16 @@ See [docs/DEPLOY.md](docs/DEPLOY.md) for full setup instructions for each backen
 .\client\requestSecret.ps1 `
   -FunctionUrl "https://<func>.azurewebsites.net/api/certificatesecretproxy" `
   -SecretName "MyStorageAccountKey" `
-  -Thumbprint "22E4D9050A50F3AC0A6588C641BD4BE869F788CD"
+  -Thumbprint "22E4D9050A50F3ACAA6583C641BD4BE869F788CD"
 ```
 
 Expected output:
 ```
-Auto-selected certificate: CN=MYDEVICE [22E4D9050A50F3AC0A6588C641BD4BE869F788CD]
+Auto-selected certificate: CN=MYDEVICE [22E4D9050A50F3ACAA6583C641BD4BE869F788CD]
 Success
 SecretName : MyStorageAccountKey
 SecretValue: <the-secret>
-CertThumb  : 22E4D9050A50F3AC0A6588C641BD4BE869F788CD
+CertThumb  : 22E4D9050A50F3ACAA6583C641BD4BE869F788CD
 Workload   : APPSETTINGS
 ```
 

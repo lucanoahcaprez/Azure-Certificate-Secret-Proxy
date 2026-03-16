@@ -307,14 +307,14 @@ Run the client script from a device that has a valid machine certificate:
 
 Expected output:
 ```
-Auto-selected certificate: CN=MYDEVICE [22E4D9050A50F3AC0A6588C641BD4BE869F788CD]
+Auto-selected certificate: CN=MYDEVICE [22E4D9050A50F3ACAA6583C641BD4BE869F788CD]
 Certificate: CN=MYDEVICE
-Thumbprint: 22E4D9050A50F3AC0A6588C641BD4BE869F788CD
+Thumbprint: 22E4D9050A50F3ACAA6583C641BD4BE869F788CD
 Endpoint: https://...
 Success
 SecretName : MyStorageAccountKey
 SecretValue: <the-secret>
-CertThumb  : 22E4D9050A50F3AC0A6588C641BD4BE869F788CD
+CertThumb  : 22E4D9050A50F3ACAA6583C641BD4BE869F788CD
 Workload   : APPSETTINGS
 ```
 
