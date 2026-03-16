@@ -295,6 +295,18 @@ try {
 catch {
     $diagnostics.Phase = 'secret-retrieval'
     $diagnostics.Message = $_.Exception.Message
-    Send-Response 500 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+
+    # If the upstream service (Key Vault, Table Storage) returned 404, surface that as a 404.
+    $upstreamStatus = $null
+    if ($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException]) {
+        $upstreamStatus = [int]$_.Exception.Response.StatusCode
+    }
+
+    if ($upstreamStatus -eq 404) {
+        $diagnostics.Message = "Secret not found: $secretName"
+        Send-Response 404 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+    } else {
+        Send-Response 500 $diagnostics.Message @{ Phase = 'secret-retrieval' }
+    }
 }
 

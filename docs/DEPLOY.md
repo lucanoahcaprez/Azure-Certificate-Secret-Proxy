@@ -160,7 +160,7 @@ The `WORKLOAD` setting controls **which backend is active**. Only one backend is
 |---|---|---|
 | `APPSETTINGS` (default) | Function App application settings | None |
 | `KEYVAULT` | Azure Key Vault (via managed identity) | `KEYVAULT_NAME` or `KEYVAULT_URI` |
-| `TABLE` | Azure Table Storage (via SAS token) | `TABLE_ENDPOINT`, `TABLE_SAS_TOKEN` |
+| `TABLE` | Azure Table Storage (via managed identity) | `TABLE_ENDPOINT` |
 
 ---
 
@@ -240,9 +240,36 @@ The client passes the Key Vault secret name as `SecretName`. Key Vault secret na
 
 ---
 
-### TABLE
+### STORAGE TABLE
 
-Secrets are stored as rows in an Azure Table Storage table with `PartitionKey=secret`, `RowKey=<SecretName>`, and a `Value` column.
+Secrets are stored as rows in an Azure Table Storage table with `PartitionKey=secret`, `RowKey=<SecretName>`, and a `Value` column. The function acquires a token via the Function App's **system-assigned managed identity** — no credentials are stored anywhere.
+
+**5d. Enable the managed identity** (skip if already done for KEYVAULT)
+
+```bash
+az functionapp identity assign \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01
+```
+
+Note the `principalId` in the output.
+
+**5e. Grant the identity permission to read table data**
+
+The required role is **Storage Table Data Reader** (data plane — grants read access to table entities).
+
+```bash
+# Get the Storage Account resource ID
+SA_ID=$(az storage account show --name <your-storage-account-name> --query id -o tsv)
+
+# Assign Storage Table Data Reader role
+az role assignment create \
+  --assignee "<PRINCIPAL_ID>" \
+  --role "Storage Table Data Reader" \
+  --scope "$SA_ID"
+```
+
+**5f. Set app settings**
 
 ```bash
 az functionapp config appsettings set \
@@ -250,8 +277,7 @@ az functionapp config appsettings set \
   -n func-lnc-lab-certificatesecretproxy-test-01 \
   --settings \
     WORKLOAD=TABLE \
-    TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets" \
-    TABLE_SAS_TOKEN="?sv=..."
+    TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets"
 ```
 
 ---
@@ -303,8 +329,7 @@ Workload   : APPSETTINGS
 | `WEBSITE_LOAD_CERTIFICATES` | Required when `CERT_ROOT_THUMBPRINT` is set | — | Set to `*` to load all uploaded certs into the Function process cert stores. |
 | `WORKLOAD` | No | `APPSETTINGS` | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. |
 | `KEYVAULT_NAME` | Required for `KEYVAULT` | — | Key Vault name. Alternatively set `KEYVAULT_URI` for the full URI. |
-| `TABLE_ENDPOINT` | Required for `TABLE` | — | Table Storage URL including table name. |
-| `TABLE_SAS_TOKEN` | Required for `TABLE` | — | SAS token string, starting with `?sv=`. |
+| `TABLE_ENDPOINT` | Required for `TABLE` | — | Table Storage URL including table name (e.g. `https://{account}.table.core.windows.net/{tableName}`). |
 
 ---
 
