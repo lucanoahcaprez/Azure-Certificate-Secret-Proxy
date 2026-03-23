@@ -52,17 +52,44 @@
             "visible": true,
             "options": {
               "icon": "Info",
-              "text": "At least one of the two validation methods below must be configured. Both can be active simultaneously — the certificate must then satisfy both checks. You can also leave both empty now and configure them after deployment."
+              "text": "Select one or more authentication methods. All selected methods must pass (AND logic). EntraDeviceCert validates devices against Microsoft Entra ID via Graph API. CertChainValidation trusts any cert issued by your Root CA. TrustedThumbprints allows specific cert thumbprints."
+            }
+          },
+          {
+            "name": "authMethods",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Authentication Method",
+            "defaultValue": "Entra Device Certificate",
+            "toolTip": "Controls how client certificates are validated. EntraDeviceCert: validates against Microsoft Entra ID via Graph API (requires Device.Read.All app role on managed identity). CertChainValidation: cert must chain to an uploaded Root CA. TrustedThumbprints: cert thumbprint must be in the allowlist. Combinations require ALL conditions to pass.",
+            "constraints": {
+              "required": true,
+              "allowedValues": [
+                { "label": "Entra Device Certificate (Graph API)", "value": "EntraDeviceCert" },
+                { "label": "Root CA Chain Validation (mTLS)", "value": "CertChainValidation" },
+                { "label": "Trusted Thumbprints (allowlist)", "value": "TrustedThumbprints" },
+                { "label": "Entra Device Certificate + Root CA Chain", "value": "EntraDeviceCert;CertChainValidation" },
+                { "label": "Root CA Chain + Trusted Thumbprints (strictest mTLS)", "value": "CertChainValidation;TrustedThumbprints" }
+              ]
+            }
+          },
+          {
+            "name": "entraDeviceInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[contains(steps('certStep').authMethods, 'EntraDeviceCert')]",
+            "options": {
+              "icon": "Warning",
+              "text": "After deployment, grant the Function App managed identity the 'Device.Read.All' application role on Microsoft Graph. The managed identity principal ID is shown in the deployment outputs."
             }
           },
           {
             "name": "certRootThumbprint",
             "type": "Microsoft.Common.TextBox",
             "label": "Root CA Certificate Thumbprint",
-            "toolTip": "Thumbprint of the Root CA certificate you will upload in the Azure Portal (Function App → Certificates → Public key certificates). When set, every client certificate must chain up to this CA. Recommended for managed device fleets — any device certificate issued by your corporate CA is automatically trusted.",
-            "placeholder": "Leave empty to skip chain validation",
+            "toolTip": "Thumbprint of the Root CA certificate you will upload in the Azure Portal (Function App → Certificates → Public key certificates). Required when CertChainValidation is selected.",
+            "placeholder": "Leave empty if not using CertChainValidation",
+            "visible": "[contains(steps('certStep').authMethods, 'CertChainValidation')]",
             "constraints": {
-              "required": false,
+              "required": "[contains(steps('certStep').authMethods, 'CertChainValidation')]",
               "regex": "^([0-9A-Fa-f]{40})?$",
               "validationMessage": "Must be a 40-character hexadecimal thumbprint, or leave empty."
             }
@@ -71,16 +98,17 @@
             "name": "allowedClientCerts",
             "type": "Microsoft.Common.TextBox",
             "label": "Allowed Client Certificate Thumbprints",
-            "toolTip": "Semicolon-separated list of client certificate thumbprints that are explicitly allowed (uppercase hex, no spaces). Example: 22E4D9050A50F3ACAA6583C641BD4BE869F788CD;AABBCC... Suitable for a small number of known devices.",
-            "placeholder": "THUMB1;THUMB2 (leave empty to skip allowlist)",
+            "toolTip": "Semicolon-separated list of client certificate thumbprints that are explicitly allowed (uppercase hex, no spaces). Required when TrustedThumbprints is selected.",
+            "placeholder": "THUMB1;THUMB2 (leave empty if not using TrustedThumbprints)",
+            "visible": "[contains(steps('certStep').authMethods, 'TrustedThumbprints')]",
             "constraints": {
-              "required": false
+              "required": "[contains(steps('certStep').authMethods, 'TrustedThumbprints')]"
             }
           },
           {
             "name": "certPostInfo",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[not(empty(steps('certStep').certRootThumbprint))]",
+            "visible": "[contains(steps('certStep').authMethods, 'CertChainValidation')]",
             "options": {
               "icon": "Warning",
               "text": "After deployment you must upload your Root CA certificate in the Azure Portal (Function App → Certificates → Public key certificates) and set WEBSITE_LOAD_CERTIFICATES=* — the ARM template sets this automatically when certRootThumbprint is provided."
@@ -118,7 +146,7 @@
             "visible": "[equals(steps('backendStep').workload, 'APPSETTINGS')]",
             "options": {
               "icon": "Info",
-              "text": "After deployment, add each secret as a Function App application setting. The setting name is exactly what device clients pass as 'SecretName'."
+              "text": "After deployment, add each secret as a Function App application setting with a 'VAR_' prefix. For example, to expose a secret called 'MyStorageAccountKey', create an app setting named 'VAR_MyStorageAccountKey'. The client requests SecretName=MyStorageAccountKey and the function looks up VAR_MyStorageAccountKey. Only settings prefixed with VAR_ are exposed."
             }
           },
           {
@@ -166,6 +194,7 @@
       "workload": "[steps('backendStep').workload]",
       "certRootThumbprint": "[steps('certStep').certRootThumbprint]",
       "allowedClientCerts": "[steps('certStep').allowedClientCerts]",
+      "authMethods": "[steps('certStep').authMethods]",
       "keyVaultName": "[steps('backendStep').keyVaultName]",
       "tableEndpoint": "[steps('backendStep').tableEndpoint]"
     }

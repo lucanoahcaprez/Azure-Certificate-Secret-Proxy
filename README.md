@@ -151,10 +151,10 @@ The `WORKLOAD` setting controls where the function looks for secrets. Pick one:
 ```bash
 az functionapp config appsettings set \
   -g <resource-group> -n <function-app-name> \
-  --settings MyStorageAccountKey="<value>" OtherSecret="<value>"
+  --settings VAR_MyStorageAccountKey="<value>" VAR_OtherSecret="<value>"
 ```
 
-No `WORKLOAD` setting needed. The setting name is the `SecretName` the client requests.
+No `WORKLOAD` setting needed. Setting names must be prefixed with `VAR_`. The client requests `SecretName=MyStorageAccountKey` and the function looks up `VAR_MyStorageAccountKey`. This prevents accidental exposure of system or runtime settings.
 
 **`KEYVAULT` — secrets stored in Azure Key Vault**
 
@@ -222,7 +222,7 @@ Workload   : APPSETTINGS
 | `CERT_ROOT_THUMBPRINT` | At least one of the two must be set | Thumbprint of the Root CA uploaded to the Function App. Enables chain validation. |
 | `ALLOWED_CLIENT_CERTS` | At least one of the two must be set | Semicolon-separated list of allowed client cert thumbprints (uppercase). |
 | `WEBSITE_LOAD_CERTIFICATES` | Required when `CERT_ROOT_THUMBPRINT` is used | Set to `*` so the runtime loads uploaded CA certs into the Function process cert stores. |
-| `WORKLOAD` | No (default: `APPSETTINGS`) | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. |
+| `WORKLOAD` | No (default: `APPSETTINGS`) | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. For `APPSETTINGS`, secrets must be stored with a `VAR_` prefix (e.g. `VAR_MySecret`). |
 | `KEYVAULT_NAME` or `KEYVAULT_URI` | Required for `KEYVAULT` workload | Key Vault name or full URI. The Function App must have a managed identity with Secret `get` permission. |
 | `TABLE_ENDPOINT` | Required for `TABLE` workload | Azure Table Storage URL including table name, e.g. `https://acct.table.core.windows.net/Secrets`. |
 | `TABLE_SAS_TOKEN` | Required for `TABLE` workload | SAS token string (starts with `?sv=`). Table rows must have `PartitionKey=secret`, `RowKey=<SecretName>`, `Value=<secret>`. |
@@ -231,7 +231,7 @@ Workload   : APPSETTINGS
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `SecretValue` is empty in response | Secret name does not match an app setting (or Key Vault secret / Table row) | Verify the exact setting name matches what the client passes as `SecretName` |
+| `SecretValue` is empty in response | Secret name does not match an app setting (or Key Vault secret / Table row) | For APPSETTINGS: verify a setting named `VAR_<SecretName>` exists. For other backends: verify the exact name. |
 | HTTP 401 – "Client certificate header not found" | App Service is not forwarding the cert, or client did not send one | Confirm `clientCertEnabled=true` and `WEBSITE_CLIENT_CERT_MODE=Required`; ensure the client uses `-Certificate` |
 | HTTP 401 – "Certificate chain validation failed: Root certificate … not found" | Root CA cert not loaded in Function process stores | Upload CA cert; set `WEBSITE_LOAD_CERTIFICATES=*`; restart Function App |
 | HTTP 401 – "Certificate thumbprint not in whitelist" | Cert not in `ALLOWED_CLIENT_CERTS` | Add thumbprint (uppercase, no spaces) to the setting |
