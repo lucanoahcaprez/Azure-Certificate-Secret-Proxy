@@ -59,6 +59,13 @@
         "description": "(Optional) Semicolon-separated list of allowed client certificate thumbprints (uppercase hex, no spaces). When set, the client cert thumbprint must be in this list. Can be combined with certRootThumbprint."
       }
     },
+    "authMethods": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "(Optional) Semicolon-separated list of authentication methods that ALL must pass. Supported values: EntraDeviceCert, CertChainValidation, TrustedThumbprints. Leave empty to derive from certRootThumbprint/allowedClientCerts (legacy behavior). Example: 'EntraDeviceCert' or 'CertChainValidation;TrustedThumbprints'. EntraDeviceCert requires the Function App managed identity to have the Device.Read.All application role on Microsoft Graph."
+      }
+    },
     "keyVaultName": {
       "type": "string",
       "defaultValue": "",
@@ -226,6 +233,10 @@
             {
               "name": "ALLOWED_CLIENT_CERTS",
               "value": "[parameters('allowedClientCerts')]"
+            },
+            {
+              "name": "AUTH_METHODS",
+              "value": "[parameters('authMethods')]"
             },
             {
               "name": "WEBSITE_LOAD_CERTIFICATES",

@@ -16,20 +16,22 @@
 ## Thumbprint Whitelist Test
 
 1. Set `ALLOWED_CLIENT_CERTS` to your cert thumbprint
-2. Run:
+2. Add a test secret: `az functionapp config appsettings set ... --settings VAR_Secret12345="testvalue"`
+3. Run:
    ```powershell
    .\client\requestSecret.ps1 -FunctionUrl <url> -SecretName "Secret12345" -Thumbprint <your-thumbprint>
    ```
-3. Expected: Success if thumbprint matches
+4. Expected: Success if thumbprint matches (the function looks up `VAR_Secret12345`)
 
 ## Root CA Chain Validation Test
 
 1. Set `CERT_ROOT_THUMBPRINT` to your Root CA thumbprint
-2. Run:
+2. Add a test secret: `az functionapp config appsettings set ... --settings VAR_Secret12345="testvalue"`
+3. Run:
    ```powershell
    .\client\requestSecret.ps1 -FunctionUrl <url> -SecretName "Secret12345" -Thumbprint <your-thumbprint>
    ```
-3. Expected: Success if certificate chains to Root CA
+4. Expected: Success if certificate chains to Root CA
 
 ## Hybrid Mode Test
 

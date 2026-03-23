@@ -111,10 +111,11 @@ The `WORKLOAD` app setting selects **one active backend** per deployment. The fu
 ### `APPSETTINGS` (default)
 
 ```powershell
-$secretValue = [Environment]::GetEnvironmentVariable($secretName)
+$envVarName = "VAR_$secretName"
+$secretValue = [Environment]::GetEnvironmentVariable($envVarName)
 ```
 
-The secret is stored as a Function App application setting whose name equals `SecretName`. Simple and requires no additional Azure services. Manage secrets by updating app settings.
+The secret is stored as a Function App application setting whose name is `VAR_` followed by the `SecretName`. For example, if the client requests `SecretName=MyStorageAccountKey`, the function looks up the environment variable `VAR_MyStorageAccountKey`. This prefix ensures that only explicitly designated settings are exposed — system and runtime settings (e.g. `AzureWebJobsStorage`, `FUNCTIONS_WORKER_RUNTIME`) are never returned. Manage secrets by updating app settings with the `VAR_` prefix.
 
 ### `KEYVAULT`
 

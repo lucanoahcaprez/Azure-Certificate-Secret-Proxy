@@ -94,13 +94,76 @@ az functionapp update \
 
 ## Step 4 — Configure certificate validation
 
-You must configure **at least one** of the two validation methods. They can both be active simultaneously (the certificate must then satisfy both checks).
+You must configure **at least one** authentication method via the `AUTH_METHODS` app setting. Multiple methods can be combined — when more than one is listed, **all must pass** (AND logic).
 
-### Option A — Root CA chain validation (recommended for device fleets)
+| Method value | Trust basis | Best for |
+|---|---|---|
+| `EntraDeviceCert` | Microsoft Entra ID device record (via Graph API) | Entra-joined / Hybrid-joined device fleets |
+| `CertChainValidation` | Certificate chains to uploaded Root CA | Devices with certificates from a corporate PKI |
+| `TrustedThumbprints` | Certificate thumbprint is in the allowlist | Small, static set of known devices |
+
+Set `AUTH_METHODS` as a semicolon-separated list, e.g. `AUTH_METHODS=EntraDeviceCert` or `AUTH_METHODS=CertChainValidation;TrustedThumbprints`.
+
+> **Backward compatibility:** If `AUTH_METHODS` is not set, the function derives the method from the legacy `CERT_ROOT_THUMBPRINT` / `ALLOWED_CLIENT_CERTS` settings automatically.
+
+---
+
+### Option A — Entra Device Certificate (recommended for Entra-managed fleets)
+
+Trusts any device whose certificate is registered in Microsoft Entra ID. The function calls Microsoft Graph to verify the device record, thumbprint, and public key hash from `alternativeSecurityIds`. Private key ownership is proven by the mTLS handshake.
+
+**Requirements:** The device must be Entra-joined or Hybrid Entra-joined. The Entra device certificate (`CN=<DeviceId>`) must be in `Cert:\LocalMachine\My`.
+
+**Enable the managed identity** (skip if already done)
+
+```bash
+az functionapp identity assign \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01
+```
+
+Note the `principalId` in the output.
+
+**Grant the managed identity the `Device.Read.All` application role on Microsoft Graph**
+
+```bash
+# Get the Microsoft Graph service principal ID in your tenant
+GRAPH_SP_ID=$(az ad sp list --filter "appId eq '00000003-0000-0000-c000-000000000000'" --query '[0].id' -o tsv)
+
+# Get the Device.Read.All app role ID from Graph
+ROLE_ID=$(az ad sp show --id $GRAPH_SP_ID \
+  --query "appRoles[?value=='Device.Read.All'].id" -o tsv)
+
+# Get the managed identity's object (service principal) ID
+MI_SP_ID=$(az ad sp list --filter "displayName eq '<your-function-app-name>'" --query '[0].id' -o tsv)
+# Or look it up directly:
+MI_SP_ID=$(az functionapp identity show \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --query principalId -o tsv)
+
+# Assign the app role (this is an app role assignment, not an Azure RBAC role)
+az rest --method POST \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$MI_SP_ID/appRoleAssignments" \
+  --body "{\"principalId\": \"$MI_SP_ID\", \"resourceId\": \"$GRAPH_SP_ID\", \"appRoleId\": \"$ROLE_ID\"}"
+```
+
+**Set app settings**
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings AUTH_METHODS=EntraDeviceCert
+```
+
+---
+
+### Option B — Root CA chain validation (recommended for corporate PKI device fleets)
 
 This trusts any device certificate issued by your corporate CA. No per-device configuration is needed when a new machine is enrolled.
 
-**4a. Upload the Root CA certificate**
+**Upload the Root CA certificate**
 
 In the **Azure Portal**:
 1. Navigate to your Function App.
@@ -108,22 +171,23 @@ In the **Azure Portal**:
 3. Upload your `.cer` file.
 4. Note the **Thumbprint** shown after upload (uppercase hex, no spaces).
 
-**4b. Set app settings**
+**Set app settings**
 
 ```bash
 az functionapp config appsettings set \
   -g rg-lnc-lab-CertificateSecretProxy-test-01 \
   -n func-lnc-lab-certificatesecretproxy-test-01 \
   --settings \
+    AUTH_METHODS=CertChainValidation \
     CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
     WEBSITE_LOAD_CERTIFICATES="*"
 ```
 
-`WEBSITE_LOAD_CERTIFICATES=*` tells the App Service runtime to load all uploaded certificates into the process certificate stores (`Cert:\CurrentUser\My`, etc.), which is required for the chain validation to find the CA cert at runtime.
+`WEBSITE_LOAD_CERTIFICATES=*` tells the App Service runtime to load all uploaded certificates into the process certificate stores, which is required for chain validation to find the CA cert at runtime.
 
 ---
 
-### Option B — Thumbprint allowlist (suitable for a small number of devices)
+### Option C — Thumbprint allowlist (suitable for a small number of devices)
 
 Explicitly lists which client certificate thumbprints are trusted. Requires re-configuration every time a device is added or a certificate is renewed.
 
@@ -139,16 +203,28 @@ Get-ChildItem -Path Cert:\LocalMachine\My | Select-Object Subject, Thumbprint, N
 az functionapp config appsettings set \
   -g rg-lnc-lab-CertificateSecretProxy-test-01 \
   -n func-lnc-lab-certificatesecretproxy-test-01 \
-  --settings ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
+  --settings \
+    AUTH_METHODS=TrustedThumbprints \
+    ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
 ```
 
 Thumbprints must be **uppercase** hex strings with **no spaces**. Separate multiple thumbprints with `;`.
 
 ---
 
-### Option C — Both methods (chain + allowlist)
+### Option D — Combined methods
 
-Set both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CERTS`. The certificate must pass the chain check **and** have its thumbprint in the list. This is the strictest mode.
+Set `AUTH_METHODS` to a semicolon-separated list. All methods must pass. For example, to require both an Entra device certificate **and** a Root CA chain:
+
+```bash
+az functionapp config appsettings set \
+  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
+  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  --settings \
+    AUTH_METHODS="EntraDeviceCert;CertChainValidation" \
+    CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
+    WEBSITE_LOAD_CERTIFICATES="*"
+```
 
 ---
 
@@ -166,15 +242,15 @@ The `WORKLOAD` setting controls **which backend is active**. Only one backend is
 
 ### APPSETTINGS (default)
 
-Each secret is a Function App application setting. The setting name is exactly what the client passes as `SecretName`.
+Each secret is a Function App application setting prefixed with `VAR_`. The client sends `SecretName=MyKey` and the function looks up the environment variable `VAR_MyKey`. This prefix prevents accidental exposure of system or runtime settings.
 
 ```bash
 az functionapp config appsettings set \
   -g rg-lnc-lab-CertificateSecretProxy-test-01 \
   -n func-lnc-lab-certificatesecretproxy-test-01 \
   --settings \
-    MyStorageAccountKey="<value>" \
-    AnotherSecret="<value>"
+    VAR_MyStorageAccountKey="<value>" \
+    VAR_AnotherSecret="<value>"
 ```
 
 No `WORKLOAD` setting needed; `APPSETTINGS` is the default.
@@ -324,9 +400,10 @@ Workload   : APPSETTINGS
 
 | Setting | Required? | Default | Description |
 |---|---|---|---|
-| `CERT_ROOT_THUMBPRINT` | At least one of the two must be set | — | Thumbprint of the Root CA uploaded to the Function App. Enables chain-based trust. |
-| `ALLOWED_CLIENT_CERTS` | At least one of the two must be set | — | Semicolon-separated client cert thumbprints (uppercase). |
-| `WEBSITE_LOAD_CERTIFICATES` | Required when `CERT_ROOT_THUMBPRINT` is set | — | Set to `*` to load all uploaded certs into the Function process cert stores. |
+| `AUTH_METHODS` | Yes (or set legacy vars) | derived | Semicolon-separated list of auth methods. All must pass. Values: `EntraDeviceCert`, `CertChainValidation`, `TrustedThumbprints`. |
+| `CERT_ROOT_THUMBPRINT` | Required when `CertChainValidation` is active | — | Thumbprint of the Root CA uploaded to the Function App. |
+| `ALLOWED_CLIENT_CERTS` | Required when `TrustedThumbprints` is active | — | Semicolon-separated client cert thumbprints (uppercase). |
+| `WEBSITE_LOAD_CERTIFICATES` | Required when `CertChainValidation` is active | — | Set to `*` to load all uploaded certs into the Function process cert stores. |
 | `WORKLOAD` | No | `APPSETTINGS` | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. |
 | `KEYVAULT_NAME` | Required for `KEYVAULT` | — | Key Vault name. Alternatively set `KEYVAULT_URI` for the full URI. |
 | `TABLE_ENDPOINT` | Required for `TABLE` | — | Table Storage URL including table name (e.g. `https://{account}.table.core.windows.net/{tableName}`). |
@@ -352,7 +429,7 @@ The function could not find the Root CA in any of its process-side cert stores.
 2. Confirm `WEBSITE_LOAD_CERTIFICATES=*` is set as an app setting.
 3. After changing either, **restart** the Function App.
 
-### HTTP 401 — "Certificate thumbprint not in whitelist"
+### HTTP 401 — "Certificate thumbprint not in allowlist"
 
 The presented certificate's thumbprint is not in `ALLOWED_CLIENT_CERTS`.
 
@@ -365,16 +442,38 @@ The machine certificate's `NotBefore`/`NotAfter` window does not include the cur
 
 - Renew the certificate via your CA or re-enroll the device.
 
-### HTTP 500 — "No validation method configured"
+### HTTP 500 — "No authentication method configured"
 
-Neither `CERT_ROOT_THUMBPRINT` nor `ALLOWED_CLIENT_CERTS` is set.
+Neither `AUTH_METHODS` nor the legacy `CERT_ROOT_THUMBPRINT`/`ALLOWED_CLIENT_CERTS` settings are set.
 
-- Configure at least one. See Step 4.
+- Set `AUTH_METHODS` to one of: `EntraDeviceCert`, `CertChainValidation`, `TrustedThumbprints`. See Step 4.
+
+### HTTP 401 — "EntraDeviceCert validation failed: No Entra device record found"
+
+The certificate's Subject CN is a valid GUID but no matching device was found in Entra.
+
+- Verify the device is Entra-joined or Hybrid-joined: run `dsregcmd /status` on the device and check `AzureAdJoined: YES`.
+- Verify the managed identity has the `Device.Read.All` **application role** on Microsoft Graph (not an Azure RBAC role).
+- Check the `Diagnostics.CertThumbprint` in the response — does it match the Entra device certificate in `Cert:\LocalMachine\My` on the device?
+
+### HTTP 401 — "EntraDeviceCert validation failed: Certificate CN '...' is not a GUID"
+
+The client is presenting a non-Entra certificate (e.g. a corporate PKI cert with `CN=<hostname>`). Entra device certificates must have `CN=<DeviceId>` where DeviceId is the Entra device ID GUID.
+
+- If you want to use corporate PKI certificates, use `CertChainValidation` instead of (or in addition to) `EntraDeviceCert`.
+- On the device, the Entra device cert is typically in `Cert:\LocalMachine\My` with `CN=<GUID>`. The `requestSecret.ps1` client script may be auto-selecting a different certificate.
+
+### HTTP 401 — "EntraDeviceCert validation failed: Certificate thumbprint ... does not match"
+
+The certificate presented over mTLS has a different thumbprint than what Entra has on record for that device.
+
+- The device certificate may have been renewed/rotated. Force an Entra re-registration: `dsregcmd /forcerecovery` or re-join the device.
+- Alternatively, the device may be presenting the wrong certificate. Inspect `Cert:\LocalMachine\My` for all certs with `CN=<DeviceId>`.
 
 ### `SecretValue` is empty / HTTP 404
 
 The `SecretName` requested does not exist in the configured backend.
 
-- For `APPSETTINGS`: verify there is an app setting with exactly that name (case-sensitive on Linux; case-insensitive on Windows).
+- For `APPSETTINGS`: verify there is an app setting named `VAR_<SecretName>` (case-sensitive on Linux; case-insensitive on Windows).
 - For `KEYVAULT`: verify the secret exists in the vault and the managed identity has `get` permission.
 - For `TABLE`: verify a row exists with `PartitionKey=secret` and `RowKey=<SecretName>`.

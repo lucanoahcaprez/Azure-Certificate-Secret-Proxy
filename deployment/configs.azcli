@@ -20,5 +20,10 @@ az functionapp update --set https_only=true --name "func-lnc-lab-certificatesecr
 # Set the workload type: APPSETTINGS (default), KEYVAULT, or TABLE
 # az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings WORKLOAD="APPSETTINGS"
 
+# -------- APPSETTINGS Workload: Add Secrets --------
+# For the APPSETTINGS workload, secret names must be prefixed with VAR_
+# The client requests SecretName=MySecret and the function looks up VAR_MySecret
+# az functionapp config appsettings set -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01 --settings VAR_MyStorageAccountKey="<value>" VAR_AnotherSecret="<value>"
+
 # -------- Restart --------
 az functionapp restart -g rg-lnc-lab-CertificateSecretProxy-test-01 -n func-lnc-lab-certificatesecretproxy-test-01
