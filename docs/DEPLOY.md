@@ -41,11 +41,7 @@ Follow the steps below to provision and configure everything using the Azure CLI
 - A **Function App** already provisioned (Windows hosting plan, PowerShell runtime, app settings storage configured)
 - Your corporate **Root CA certificate** exported as a `.cer` file (DER or PEM encoded, containing only the public key — no private key)
 
-> The resource group and Function App name used in `deployment/configs.azcli` are:
-> - Resource group: `rg-lnc-lab-CertificateSecretProxy-test-01`
-> - Function App: `func-lnc-lab-certificatesecretproxy-test-01`
->
-> Replace these with your own values in all commands below.
+> Replace `<resource-group>` and `<your-function-app-name>` in all commands below with your own values.
 
 ---
 
@@ -54,7 +50,7 @@ Follow the steps below to provision and configure everything using the Azure CLI
 From the repository root:
 
 ```bash
-func azure functionapp publish func-lnc-lab-certificatesecretproxy-test-01
+func azure functionapp publish <your-function-app-name>
 ```
 
 This publishes `certificatesecretproxy/run.ps1` and `certificatesecretproxy/function.json`.
@@ -69,13 +65,13 @@ Azure App Service must be configured to **require** a client certificate and for
 # Enable client certificate negotiation
 az functionapp update \
   --set clientCertEnabled=true \
-  --name func-lnc-lab-certificatesecretproxy-test-01 \
-  --resource-group rg-lnc-lab-CertificateSecretProxy-test-01
+  --name <your-function-app-name> \
+  --resource-group <resource-group>
 
 # Require the client cert (not just request it optionally)
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings WEBSITE_CLIENT_CERT_MODE=Required
 ```
 
@@ -86,8 +82,8 @@ az functionapp config appsettings set \
 ```bash
 az functionapp update \
   --set https_only=true \
-  --name func-lnc-lab-certificatesecretproxy-test-01 \
-  --resource-group rg-lnc-lab-CertificateSecretProxy-test-01
+  --name <your-function-app-name> \
+  --resource-group <resource-group>
 ```
 
 ---
@@ -118,8 +114,8 @@ Trusts any device whose certificate is registered in Microsoft Entra ID. The fun
 
 ```bash
 az functionapp identity assign \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01
+  -g <resource-group> \
+  -n <your-function-app-name>
 ```
 
 Note the `principalId` in the output.
@@ -138,8 +134,8 @@ ROLE_ID=$(az ad sp show --id $GRAPH_SP_ID \
 MI_SP_ID=$(az ad sp list --filter "displayName eq '<your-function-app-name>'" --query '[0].id' -o tsv)
 # Or look it up directly:
 MI_SP_ID=$(az functionapp identity show \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --query principalId -o tsv)
 
 # Assign the app role (this is an app role assignment, not an Azure RBAC role)
@@ -152,8 +148,8 @@ az rest --method POST \
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings AUTH_METHODS=EntraDeviceCert
 ```
 
@@ -175,8 +171,8 @@ In the **Azure Portal**:
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     AUTH_METHODS=CertChainValidation \
     CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
@@ -201,8 +197,8 @@ Get-ChildItem -Path Cert:\LocalMachine\My | Select-Object Subject, Thumbprint, N
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     AUTH_METHODS=TrustedThumbprints \
     ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
@@ -218,8 +214,8 @@ Set `AUTH_METHODS` to a semicolon-separated list. All methods must pass. For exa
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     AUTH_METHODS="EntraDeviceCert;CertChainValidation" \
     CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
@@ -246,8 +242,8 @@ Each secret is a Function App application setting prefixed with `VAR_`. The clie
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     VAR_MyStorageAccountKey="<value>" \
     VAR_AnotherSecret="<value>"
@@ -265,8 +261,8 @@ The function acquires a token via the Function App's **system-assigned managed i
 
 ```bash
 az functionapp identity assign \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01
+  -g <resource-group> \
+  -n <your-function-app-name>
 ```
 
 Note the `principalId` in the output — you need it for the next step.
@@ -303,8 +299,8 @@ az keyvault set-policy \
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     WORKLOAD=KEYVAULT \
     KEYVAULT_NAME="<your-keyvault-name>"
@@ -324,8 +320,8 @@ Secrets are stored as rows in an Azure Table Storage table with `PartitionKey=se
 
 ```bash
 az functionapp identity assign \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01
+  -g <resource-group> \
+  -n <your-function-app-name>
 ```
 
 Note the `principalId` in the output.
@@ -349,8 +345,8 @@ az role assignment create \
 
 ```bash
 az functionapp config appsettings set \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01 \
+  -g <resource-group> \
+  -n <your-function-app-name> \
   --settings \
     WORKLOAD=TABLE \
     TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets"
@@ -364,8 +360,8 @@ Always restart after changing app settings to ensure the new values are loaded:
 
 ```bash
 az functionapp restart \
-  -g rg-lnc-lab-CertificateSecretProxy-test-01 \
-  -n func-lnc-lab-certificatesecretproxy-test-01
+  -g <resource-group> \
+  -n <your-function-app-name>
 ```
 
 ---
@@ -376,7 +372,7 @@ Run the client script from a device that has a valid machine certificate:
 
 ```powershell
 .\client\requestSecret.ps1 `
-  -FunctionUrl "https://func-lnc-lab-certificatesecretproxy-test-01.azurewebsites.net/api/certificatesecretproxy" `
+  -FunctionUrl "https://<your-function-app-name>.azurewebsites.net/api/certificatesecretproxy" `
   -SecretName "MyStorageAccountKey" `
   -VerboseLogging
 ```
