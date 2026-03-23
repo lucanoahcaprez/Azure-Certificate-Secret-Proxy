@@ -63,16 +63,10 @@ Azure App Service must be configured to **require** a client certificate and for
 
 ```bash
 # Enable client certificate negotiation
-az functionapp update \
-  --set clientCertEnabled=true \
-  --name <your-function-app-name> \
-  --resource-group <resource-group>
+az functionapp update --set clientCertEnabled=true --name <your-function-app-name> --resource-group <resource-group>
 
 # Require the client cert (not just request it optionally)
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings WEBSITE_CLIENT_CERT_MODE=Required
+az functionapp config appsettings set --settings WEBSITE_CLIENT_CERT_MODE=Required --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---
@@ -80,10 +74,7 @@ az functionapp config appsettings set \
 ## Step 3 — Enforce HTTPS
 
 ```bash
-az functionapp update \
-  --set https_only=true \
-  --name <your-function-app-name> \
-  --resource-group <resource-group>
+az functionapp update --set https_only=true  --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---
@@ -113,44 +104,36 @@ Trusts any device whose certificate is registered in Microsoft Entra ID. The fun
 **Enable the managed identity** (skip if already done)
 
 ```bash
-az functionapp identity assign \
-  -g <resource-group> \
-  -n <your-function-app-name>
+az functionapp identity assign --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 Note the `principalId` in the output.
 
 **Grant the managed identity the `Device.Read.All` application role on Microsoft Graph**
 
-```bash
+```powershell
 # Get the Microsoft Graph service principal ID in your tenant
-GRAPH_SP_ID=$(az ad sp list --filter "appId eq '00000003-0000-0000-c000-000000000000'" --query '[0].id' -o tsv)
+$graphSpId = az ad sp list --filter "appId eq '00000003-0000-0000-c000-000000000000'" --query '[0].id' -o tsv
 
 # Get the Device.Read.All app role ID from Graph
-ROLE_ID=$(az ad sp show --id $GRAPH_SP_ID \
-  --query "appRoles[?value=='Device.Read.All'].id" -o tsv)
+$roleId = az ad sp show --id $graphSpId --query "appRoles[?value=='Device.Read.All'].id" -o tsv
 
 # Get the managed identity's object (service principal) ID
-MI_SP_ID=$(az ad sp list --filter "displayName eq '<your-function-app-name>'" --query '[0].id' -o tsv)
+$miSpId = az ad sp list --filter "displayName eq '<your-function-app-name>'" --query '[0].id' -o tsv
 # Or look it up directly:
-MI_SP_ID=$(az functionapp identity show \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --query principalId -o tsv)
+$miSpId = az functionapp identity show --query principalId -o tsv --name <your-function-app-name> --resource-group <resource-group>
 
 # Assign the app role (this is an app role assignment, not an Azure RBAC role)
-az rest --method POST \
-  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$MI_SP_ID/appRoleAssignments" \
-  --body "{\"principalId\": \"$MI_SP_ID\", \"resourceId\": \"$GRAPH_SP_ID\", \"appRoleId\": \"$ROLE_ID\"}"
+$body = @{ principalId = $miSpId; resourceId = $graphSpId; appRoleId = $roleId } | ConvertTo-Json -Compress
+$body > body.json
+az rest --method POST --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$miSpId/appRoleAssignments" --body "@body.json"
+Remove-Item body.json
 ```
 
 **Set app settings**
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings AUTH_METHODS=EntraDeviceCert
+az functionapp config appsettings set --settings AUTH_METHODS=EntraDeviceCert  --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---

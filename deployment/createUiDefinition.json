@@ -136,7 +136,7 @@
               "allowedValues": [
                 { "label": "App Settings (default)", "value": "APPSETTINGS" },
                 { "label": "Azure Key Vault (managed identity)", "value": "KEYVAULT" },
-                { "label": "Azure Table Storage", "value": "TABLE" }
+                { "label": "Azure Table Storage (managed identity)", "value": "TABLE" }
               ]
             }
           },
