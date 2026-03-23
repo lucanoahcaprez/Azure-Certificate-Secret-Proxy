@@ -19,11 +19,7 @@ to publish the function code, then continue from [Step 4 — Configure certifica
 ## Option B — Manual ARM deployment (CLI)
 
 ```bash
-az deployment group create \
-  --resource-group <resource-group> \
-  --template-file deployment/azuredeploy.json \
-  --parameters deployment/azuredeploy.parameters.json \
-               functionAppName="<your-function-app-name>"
+az deployment group create --resource-group <resource-group> --template-file deployment/azuredeploy.json --parameters deployment/azuredeploy.parameters.json    functionAppName="<your-function-app-name>"
 ```
 
 Edit `deployment/azuredeploy.parameters.json` first to set your desired values. After the deployment completes, publish the function code and continue from [Step 4](#step-4--configure-certificate-validation).
@@ -74,7 +70,7 @@ az functionapp config appsettings set --settings WEBSITE_CLIENT_CERT_MODE=Requir
 ## Step 3 — Enforce HTTPS
 
 ```bash
-az functionapp update --set https_only=true  --name <your-function-app-name> --resource-group <resource-group>
+az functionapp update --set https_only=true --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---
@@ -133,7 +129,7 @@ Remove-Item body.json
 **Set app settings**
 
 ```bash
-az functionapp config appsettings set --settings AUTH_METHODS=EntraDeviceCert  --name <your-function-app-name> --resource-group <resource-group>
+az functionapp config appsettings set --settings AUTH_METHODS=EntraDeviceCert --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---
@@ -153,13 +149,7 @@ In the **Azure Portal**:
 **Set app settings**
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    AUTH_METHODS=CertChainValidation \
-    CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
-    WEBSITE_LOAD_CERTIFICATES="*"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  AUTH_METHODS=CertChainValidation  CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>"  WEBSITE_LOAD_CERTIFICATES="*"
 ```
 
 `WEBSITE_LOAD_CERTIFICATES=*` tells the App Service runtime to load all uploaded certificates into the process certificate stores, which is required for chain validation to find the CA cert at runtime.
@@ -179,12 +169,7 @@ Get-ChildItem -Path Cert:\LocalMachine\My | Select-Object Subject, Thumbprint, N
 **Set the allowlist:**
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    AUTH_METHODS=TrustedThumbprints \
-    ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  AUTH_METHODS=TrustedThumbprints  ALLOWED_CLIENT_CERTS="THUMB1;THUMB2;THUMB3"
 ```
 
 Thumbprints must be **uppercase** hex strings with **no spaces**. Separate multiple thumbprints with `;`.
@@ -196,13 +181,7 @@ Thumbprints must be **uppercase** hex strings with **no spaces**. Separate multi
 Set `AUTH_METHODS` to a semicolon-separated list. All methods must pass. For example, to require both an Entra device certificate **and** a Root CA chain:
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    AUTH_METHODS="EntraDeviceCert;CertChainValidation" \
-    CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>" \
-    WEBSITE_LOAD_CERTIFICATES="*"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  AUTH_METHODS="EntraDeviceCert;CertChainValidation"  CERT_ROOT_THUMBPRINT="<ROOT_CA_THUMBPRINT>"  WEBSITE_LOAD_CERTIFICATES="*"
 ```
 
 ---
@@ -224,12 +203,7 @@ The `WORKLOAD` setting controls **which backend is active**. Only one backend is
 Each secret is a Function App application setting prefixed with `VAR_`. The client sends `SecretName=MyKey` and the function looks up the environment variable `VAR_MyKey`. This prefix prevents accidental exposure of system or runtime settings.
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    VAR_MyStorageAccountKey="<value>" \
-    VAR_AnotherSecret="<value>"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  VAR_MyStorageAccountKey="<value>"  VAR_AnotherSecret="<value>"
 ```
 
 No `WORKLOAD` setting needed; `APPSETTINGS` is the default.
@@ -243,9 +217,7 @@ The function acquires a token via the Function App's **system-assigned managed i
 **5a. Enable the managed identity**
 
 ```bash
-az functionapp identity assign \
-  -g <resource-group> \
-  -n <your-function-app-name>
+az functionapp identity assign --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 Note the `principalId` in the output — you need it for the next step.
@@ -261,19 +233,13 @@ Key Vault supports two permission models. Check yours under **Key Vault → Sett
 KV_ID=$(az keyvault show --name <your-keyvault-name> --query id -o tsv)
 
 # Assign Key Vault Secrets User role (allows reading secret values)
-az role assignment create \
-  --assignee "<PRINCIPAL_ID>" \
-  --role "Key Vault Secrets User" \
-  --scope "$KV_ID"
+az role assignment create --assignee "<PRINCIPAL_ID>" --role "Key Vault Secrets User" --scope "$KV_ID"
 ```
 
 > **Access policy permission model** (legacy):
 
 ```bash
-az keyvault set-policy \
-  --name <your-keyvault-name> \
-  --object-id <PRINCIPAL_ID> \
-  --secret-permissions get
+az keyvault set-policy --name <your-keyvault-name> --object-id <PRINCIPAL_ID> --secret-permissions get
 ```
 
 > **Important**: Do not confuse the **Reader** Azure role (ARM plane — grants access to vault *metadata* only) with the **Key Vault Secrets User** role (data plane — grants access to secret *values*). The function needs the data-plane role. Assigning only `Reader` results in a `403 ForbiddenByRbac` error when reading secrets.
@@ -281,12 +247,7 @@ az keyvault set-policy \
 **5c. Set app settings**
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    WORKLOAD=KEYVAULT \
-    KEYVAULT_NAME="<your-keyvault-name>"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  WORKLOAD=KEYVAULT  KEYVAULT_NAME="<your-keyvault-name>"
 ```
 
 Alternatively use `KEYVAULT_URI` instead of `KEYVAULT_NAME` if you prefer the full URI (e.g. `https://myvault.vault.azure.net`).
@@ -302,9 +263,7 @@ Secrets are stored as rows in an Azure Table Storage table with `PartitionKey=se
 **5d. Enable the managed identity** (skip if already done for KEYVAULT)
 
 ```bash
-az functionapp identity assign \
-  -g <resource-group> \
-  -n <your-function-app-name>
+az functionapp identity assign --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 Note the `principalId` in the output.
@@ -318,21 +277,13 @@ The required role is **Storage Table Data Reader** (data plane — grants read a
 SA_ID=$(az storage account show --name <your-storage-account-name> --query id -o tsv)
 
 # Assign Storage Table Data Reader role
-az role assignment create \
-  --assignee "<PRINCIPAL_ID>" \
-  --role "Storage Table Data Reader" \
-  --scope "$SA_ID"
+az role assignment create --assignee "<PRINCIPAL_ID>" --role "Storage Table Data Reader" --scope "$SA_ID"
 ```
 
 **5f. Set app settings**
 
 ```bash
-az functionapp config appsettings set \
-  -g <resource-group> \
-  -n <your-function-app-name> \
-  --settings \
-    WORKLOAD=TABLE \
-    TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets"
+az functionapp config appsettings set --name <your-function-app-name> --resource-group <resource-group> --settings  WORKLOAD=TABLE  TABLE_ENDPOINT="https://<account>.table.core.windows.net/Secrets"
 ```
 
 ---
@@ -342,9 +293,7 @@ az functionapp config appsettings set \
 Always restart after changing app settings to ensure the new values are loaded:
 
 ```bash
-az functionapp restart \
-  -g <resource-group> \
-  -n <your-function-app-name>
+az functionapp restart --name <your-function-app-name> --resource-group <resource-group>
 ```
 
 ---
@@ -355,9 +304,9 @@ Run the client script from a device that has a valid machine certificate:
 
 ```powershell
 .\client\requestSecret.ps1 `
-  -FunctionUrl "https://<your-function-app-name>.azurewebsites.net/api/certificatesecretproxy" `
-  -SecretName "MyStorageAccountKey" `
-  -VerboseLogging
+ -FunctionUrl "https://<your-function-app-name>.azurewebsites.net/api/certificatesecretproxy" `
+ -SecretName "MyStorageAccountKey" `
+ -VerboseLogging
 ```
 
 Expected output:
@@ -369,8 +318,8 @@ Endpoint: https://...
 Success
 SecretName : MyStorageAccountKey
 SecretValue: <the-secret>
-CertThumb  : 22E4D9050A50F3ACAA6583C641BD4BE869F788CD
-Workload   : APPSETTINGS
+CertThumb : 22E4D9050A50F3ACAA6583C641BD4BE869F788CD
+Workload : APPSETTINGS
 ```
 
 ---

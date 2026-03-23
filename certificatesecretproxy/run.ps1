@@ -196,7 +196,7 @@ function Test-EntraDeviceCertificate([X509Certificate2]$cert) {
     }
 
     # 6. Decode alternativeSecurityIds.key
-    # The key is a Base64-encoded Unicode string: <21-char prefix incl. '>'><40-char thumbprint><base64 public key hash>
+    # The key is a Base64-encoded Unicode string: <21-char prefix incl.'>'><40-char thumbprint><base64 public key hash>
     try {
         $decoded          = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($device.alternativeSecurityIds[0].key))
         $afterFirstAngle  = $decoded.Split(">")[1]
