@@ -113,6 +113,22 @@
               "icon": "Warning",
               "text": "After deployment you must upload your Root CA certificate in the Azure Portal (Function App → Certificates → Public key certificates) and set WEBSITE_LOAD_CERTIFICATES=* — the ARM template sets this automatically when certRootThumbprint is provided."
             }
+          },
+          {
+            "name": "certRevocationMode",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Certificate Revocation Check",
+            "defaultValue": "NoCheck — Skip CRL/OCSP (default)",
+            "toolTip": "Controls whether the certificate chain validation checks CRL (Certificate Revocation List) or OCSP endpoints. Online downloads CRLs in real time. Offline uses locally cached CRLs only. Only applies when CertChainValidation is used.",
+            "visible": "[contains(steps('certStep').authMethods, 'CertChainValidation')]",
+            "constraints": {
+              "required": false,
+              "allowedValues": [
+                { "label": "NoCheck — Skip CRL/OCSP (default)", "value": "NoCheck" },
+                { "label": "Online — Download and check CRL/OCSP in real time", "value": "Online" },
+                { "label": "Offline — Check against cached CRLs only", "value": "Offline" }
+              ]
+            }
           }
         ]
       },
@@ -195,6 +211,7 @@
       "certRootThumbprint": "[steps('certStep').certRootThumbprint]",
       "allowedClientCerts": "[steps('certStep').allowedClientCerts]",
       "authMethods": "[steps('certStep').authMethods]",
+      "certRevocationMode": "[coalesce(steps('certStep').certRevocationMode, 'NoCheck')]",
       "keyVaultName": "[steps('backendStep').keyVaultName]",
       "tableEndpoint": "[steps('backendStep').tableEndpoint]"
     }

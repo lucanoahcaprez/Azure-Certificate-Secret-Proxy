@@ -80,7 +80,7 @@ When `CERT_ROOT_THUMBPRINT` is set, the function:
    The cert must have been uploaded to the Function App (Portal → Certificates → Public key certificates) and `WEBSITE_LOAD_CERTIFICATES=*` must be set so the runtime loads it into the process stores.
 
 2. Builds an `X509Chain` with:
-   - `RevocationMode = NoCheck` (CRL checks are skipped for performance; enable `Online`/`Offline` if your PKI publishes CRLs reachable from Azure)
+   - `RevocationMode` controlled by the `CERT_REVOCATION_MODE` app setting (default: `NoCheck`). See [CRL / OCSP revocation checking](#crl--ocsp-revocation-checking) below.
    - `TrustMode = CustomRootTrust` — the uploaded CA cert is the sole trusted anchor; the system's Windows trust store is not consulted
 
 3. Calls `$chain.Build($clientCert)`. Returns **HTTP 401** if the chain cannot be built to the configured root.
@@ -103,6 +103,25 @@ This step is **additive**: if both `CERT_ROOT_THUMBPRINT` and `ALLOWED_CLIENT_CE
 | Not set | Set | Accept only certs whose thumbprint is in the list |
 | Set | Set | Cert must chain to Root CA **and** be in the list |
 | Not set | Not set | HTTP 500 — misconfiguration |
+
+## CRL / OCSP revocation checking
+
+The `CERT_REVOCATION_MODE` app setting controls whether the chain validation step checks Certificate Revocation Lists (CRLs) or OCSP responders:
+
+| Value | Behaviour |
+|---|---|
+| `NoCheck` (default) | Revocation status is not checked. Fastest option; suitable when your PKI does not publish CRLs or they are not reachable from Azure. |
+| `Online` | The runtime downloads CRL/OCSP endpoints embedded in the certificate's Authority Information Access (AIA) and CRL Distribution Points extensions in real time. If the endpoint is unreachable or the certificate is revoked, chain validation fails. |
+| `Offline` | Checks against locally cached CRLs only. Useful if you pre-load CRLs into the Function App environment (rare in serverless scenarios). |
+
+**Networking note:** `Online` mode requires outbound HTTP from the Function App to your CA's CRL distribution points. On Consumption plans this works by default. On VNet-integrated plans, ensure your NSG/firewall allows the CRL/OCSP URLs.
+
+**Configuration:**
+```bash
+az functionapp config appsettings set \
+  -g <resource-group> -n <function-app-name> \
+  --settings CERT_REVOCATION_MODE="Online"
+```
 
 ## Secret retrieval workloads
 

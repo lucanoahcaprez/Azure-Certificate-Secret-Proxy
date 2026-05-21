@@ -8,6 +8,11 @@ param($Request, $TriggerMetadata)
 # If not set, derived automatically from the legacy CERT_ROOT_THUMBPRINT / ALLOWED_CLIENT_CERTS env vars.
 $allowedThumbprints = ($env:ALLOWED_CLIENT_CERTS -split ';' | Where-Object { $_ }) | ForEach-Object { $_.Trim().ToUpper() }
 $rootCertThumbprint = if ($env:CERT_ROOT_THUMBPRINT) { $env:CERT_ROOT_THUMBPRINT.Trim().ToUpper() } else { $null }
+$revocationMode = switch ($env:CERT_REVOCATION_MODE) {
+    'Online'  { [X509RevocationMode]::Online }
+    'Offline' { [X509RevocationMode]::Offline }
+    default   { [X509RevocationMode]::NoCheck }
+}
 
 if ([string]::IsNullOrWhiteSpace($env:AUTH_METHODS)) {
     # Backward compatibility: derive from legacy env vars
@@ -119,7 +124,7 @@ function Test-CertificateChain([X509Certificate2]$clientCert, [string]$rootThumb
         }
         
         $chain = [X509Chain]::new()
-        $chain.ChainPolicy.RevocationMode = [X509RevocationMode]::NoCheck
+        $chain.ChainPolicy.RevocationMode = $revocationMode
         $chain.ChainPolicy.VerificationFlags = [X509VerificationFlags]::NoFlag
         
         [void]$chain.ChainPolicy.CustomTrustStore.Add($rootCertificate)

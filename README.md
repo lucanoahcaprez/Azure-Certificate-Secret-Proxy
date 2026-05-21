@@ -13,7 +13,7 @@ Managed Windows endpoints often need to retrieve secrets at runtime (e.g. a stor
 1. The client runs `requestSecret.ps1`, which locates the machine certificate in the Windows certificate store and calls the Azure Function over HTTPS with the cert attached.
 2. Azure App Service is configured to **require** a client certificate. It terminates TLS and forwards the certificate in the `X-ARR-ClientCert` request header.
 3. The Azure Function (`run.ps1`) decodes and validates the certificate:
-   - **Chain validation** (if `CERT_ROOT_THUMBPRINT` is set): the cert must chain up to the uploaded Root CA.
+   - **Chain validation** (if `CERT_ROOT_THUMBPRINT` is set): the cert must chain up to the uploaded Root CA. Optionally checks CRL/OCSP revocation status (`CERT_REVOCATION_MODE`).
    - **Thumbprint allowlist** (if `ALLOWED_CLIENT_CERTS` is set): the cert thumbprint must be in the list.
    - Both can be active simultaneously; the cert must then pass **both** checks.
    - At least one must be configured; otherwise the function returns HTTP 500.
@@ -39,7 +39,7 @@ The button opens a wizard in the Azure Portal that deploys all required infrastr
 - Client certificate enforcement (`clientCertEnabled=true`, `clientCertMode=Required`)
 - HTTPS-only, TLS 1.2 minimum, FTPS disabled
 - System-assigned managed identity (required for the Key Vault and Table Storage workloads)
-- All environment variables: `WORKLOAD`, `CERT_ROOT_THUMBPRINT`, `ALLOWED_CLIENT_CERTS`, `WEBSITE_LOAD_CERTIFICATES`, `KEYVAULT_NAME`, `TABLE_ENDPOINT`
+- All environment variables: `WORKLOAD`, `CERT_ROOT_THUMBPRINT`, `ALLOWED_CLIENT_CERTS`, `CERT_REVOCATION_MODE`, `WEBSITE_LOAD_CERTIFICATES`, `KEYVAULT_NAME`, `TABLE_ENDPOINT`
 
 **After the ARM deployment completes, deploy the function code:**
 
@@ -222,6 +222,7 @@ Workload   : APPSETTINGS
 | `CERT_ROOT_THUMBPRINT` | At least one of the two must be set | Thumbprint of the Root CA uploaded to the Function App. Enables chain validation. |
 | `ALLOWED_CLIENT_CERTS` | At least one of the two must be set | Semicolon-separated list of allowed client cert thumbprints (uppercase). |
 | `WEBSITE_LOAD_CERTIFICATES` | Required when `CERT_ROOT_THUMBPRINT` is used | Set to `*` so the runtime loads uploaded CA certs into the Function process cert stores. |
+| `CERT_REVOCATION_MODE` | No (default: `NoCheck`) | CRL/OCSP revocation checking during chain validation. `NoCheck` = skip, `Online` = download CRL/OCSP in real time, `Offline` = cached CRLs only. Only applies when `CertChainValidation` is active. |
 | `WORKLOAD` | No (default: `APPSETTINGS`) | Secret backend: `APPSETTINGS`, `KEYVAULT`, or `TABLE`. For `APPSETTINGS`, secrets must be stored with a `VAR_` prefix (e.g. `VAR_MySecret`). |
 | `KEYVAULT_NAME` or `KEYVAULT_URI` | Required for `KEYVAULT` workload | Key Vault name or full URI. The Function App must have a managed identity with Secret `get` permission. |
 | `TABLE_ENDPOINT` | Required for `TABLE` workload | Azure Table Storage URL including table name, e.g. `https://acct.table.core.windows.net/Secrets`. |

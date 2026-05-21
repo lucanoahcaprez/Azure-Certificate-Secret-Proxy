@@ -80,6 +80,18 @@
         "description": "(Required when workload=TABLE) Azure Table Storage URL including the table name. Format: https://<account>.table.core.windows.net/<TableName>. Table rows must have PartitionKey='secret', RowKey=<SecretName>. After deployment, grant the Function App system identity the 'Storage Table Data Reader' role on the storage account."
       }
     },
+    "certRevocationMode": {
+      "type": "string",
+      "defaultValue": "NoCheck",
+      "allowedValues": [
+        "NoCheck",
+        "Online",
+        "Offline"
+      ],
+      "metadata": {
+        "description": "Certificate revocation checking mode used during chain validation. NoCheck = skip CRL/OCSP (default). Online = download and check CRL/OCSP endpoints in real time. Offline = check against locally cached CRLs only."
+      }
+    },
     "packageUrl": {
       "type": "string",
       "defaultValue": "https://github.com/lucanoahcaprez/Azure-Certificate-Secret-Proxy/releases/latest/download/function.zip",
@@ -249,6 +261,10 @@
             {
               "name": "TABLE_ENDPOINT",
               "value": "[parameters('tableEndpoint')]"
+            },
+            {
+              "name": "CERT_REVOCATION_MODE",
+              "value": "[parameters('certRevocationMode')]"
             },
             {
               "name": "POWERSHELL_WORKER_INVOCATION_TIMEOUT_SECS",
